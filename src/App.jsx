@@ -26,7 +26,9 @@ import {
   Upload,
   RefreshCw,
   Sun,
-  Moon
+  Moon,
+  LogOut,
+  UserCheck
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -82,6 +84,14 @@ const SEED_HISTORICAL_TRAJECTORIES = {
   ]
 };
 
+// --- DEFAULT WORKERS SEED LIST WITH ROLES AND PINS ---
+const SEED_WORKERS = [
+  { name: 'Aitor', role: 'ADMIN', pin: '1234' },
+  { name: 'Marc', role: 'ADMIN', pin: '1234' },
+  { name: 'Joan', role: 'CASHIER', pin: '0000' },
+  { name: 'Moha', role: 'CASHIER', pin: '0000' }
+];
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   
@@ -119,8 +129,8 @@ export default function App() {
 
   // Dynamic workers & historical years state
   const [workers, setWorkers] = useState(() => {
-    const saved = localStorage.getItem('sm_workers');
-    return saved ? JSON.parse(saved) : ['Aitor', 'Joan', 'Moha'];
+    const saved = localStorage.getItem('sm_workers_profiles');
+    return saved ? JSON.parse(saved) : SEED_WORKERS;
   });
   const [historicalYears, setHistoricalYears] = useState(() => {
     const saved = localStorage.getItem('sm_historical_years');
@@ -144,9 +154,19 @@ export default function App() {
 
   // Compare year selection for trajectory chart
   const [chartCompareYear, setChartCompareYear] = useState('2025');
+  const [overlayAllYears, setOverlayAllYears] = useState(false);
 
   // POS Discount & promo modifiers
   const [cartDiscount, setCartDiscount] = useState(0); 
+
+  // --- LOGIN SECURITY MODULE ---
+  const [loggedInUser, setLoggedInUser] = useState(() => {
+    const saved = localStorage.getItem('sm_active_session');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [loginSelectedUser, setLoginSelectedUser] = useState(SEED_WORKERS[0].name);
+  const [loginPin, setLoginPin] = useState('');
+  const [loginError, setLoginError] = useState('');
 
   // --- TPV POS Local States ---
   const [cart, setCart] = useState([]);
@@ -157,22 +177,30 @@ export default function App() {
   const [customPrice, setCustomPrice] = useState('');
   const [activeDiscount, setActiveDiscount] = useState(0); 
   const [paymentMethod, setPaymentMethod] = useState('TARJETA');
-  const [currentWorker, setCurrentWorker] = useState('Aitor');
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Check if logged-in worker is admin (Aitor remains the core administrator)
-  const isAdmin = useMemo(() => currentWorker === 'Aitor', [currentWorker]);
+  // Check role level permissions (Only admins can view costs, settings, edit catalog or edit stock cells)
+  const isAdmin = useMemo(() => loggedInUser && loggedInUser.role === 'ADMIN', [loggedInUser]);
+
+  // Force Tab Redirect for cashier role
+  useEffect(() => {
+    if (loggedInUser && loggedInUser.role === 'CASHIER') {
+      if (activeTab === 'expenses' || activeTab === 'settings') {
+        setActiveTab('dashboard');
+      }
+    }
+  }, [activeTab, loggedInUser]);
 
   // --- Quick POS Catalog Edit Modal ---
   const [showCatalogModal, setShowCatalogModal] = useState(false);
 
   // --- Category/Model Modification Local States ---
-  const [editingCategory, setEditingCategory] = useState(null); // name of category being edited
+  const [editingCategory, setEditingCategory] = useState(null); 
   const [editCatCoste, setEditCatCoste] = useState('');
   const [editCatPvp, setEditCatPvp] = useState('');
   const [editCatTallas, setEditCatTallas] = useState('');
 
-  const [editingModel, setEditingModel] = useState(null); // { category, oldName, newName }
+  const [editingModel, setEditingModel] = useState(null); 
 
   // --- Daily Closing Modal ---
   const [showClosureModal, setShowClosureModal] = useState(false);
@@ -197,6 +225,8 @@ export default function App() {
 
   // --- Worker CRUD Admin Inputs ---
   const [newWorkerName, setNewWorkerName] = useState('');
+  const [newWorkerPin, setNewWorkerPin] = useState('0000');
+  const [newWorkerRole, setNewWorkerRole] = useState('CASHIER');
 
   // --- Historical Years CRUD Admin Inputs ---
   const [newHistYear, setNewHistYear] = useState('');
@@ -230,6 +260,26 @@ export default function App() {
     }
     return null;
   }, [supabaseUrl, supabaseKey]);
+
+  // Handle Login authentication
+  const handleLoginSubmit = (e) => {
+    e.preventDefault();
+    const user = workers.find(w => w.name === loginSelectedUser);
+    if (user && user.pin === loginPin) {
+      setLoggedInUser(user);
+      localStorage.setItem('sm_active_session', JSON.stringify(user));
+      setLoginPin('');
+      setLoginError('');
+      setActiveTab('dashboard');
+    } else {
+      setLoginError('Código PIN de acceso incorrecto.');
+    }
+  };
+
+  const handleLogout = () => {
+    setLoggedInUser(null);
+    localStorage.removeItem('sm_active_session');
+  };
 
   // Dark Mode side effects
   useEffect(() => {
@@ -288,7 +338,6 @@ export default function App() {
     if (savedModels) {
       try {
         const parsed = JSON.parse(savedModels);
-        // If Camisetas models are still nested under Bañadores, force migration
         if (parsed.Bañadores && parsed.Bañadores.includes('Catch waves')) {
           needsMigration = true;
         }
@@ -499,7 +548,7 @@ export default function App() {
   }, [eventConfig]);
 
   useEffect(() => {
-    localStorage.setItem('sm_workers', JSON.stringify(workers));
+    localStorage.setItem('sm_workers_profiles', JSON.stringify(workers));
   }, [workers]);
 
   useEffect(() => {
@@ -549,7 +598,7 @@ export default function App() {
   // Restore Seed Catalog
   const handleRestoreDefaultCatalog = () => {
     if (!isAdmin) {
-      alert("Se requiere rol Administrador (Aitor).");
+      alert("Se requiere rol Administrador.");
       return;
     }
     if (window.confirm("¿Seguro que deseas restaurar el catálogo predeterminado de Sloppy Tunas? Se perderán las personalizaciones actuales de productos.")) {
@@ -696,7 +745,7 @@ export default function App() {
     window.print();
   };
 
-  // POS Checkout
+  // POS Checkout - Audit trail linked to active loggedInUser
   const handleCheckout = async () => {
     if (cart.length === 0) return;
 
@@ -718,7 +767,7 @@ export default function App() {
         metodo_pago: paymentMethod,
         precio: item.price,
         total: allocatedTotal,
-        worker_name: currentWorker,
+        worker_name: loggedInUser ? loggedInUser.name : 'Desconocido',
         cierre_id: null
       });
 
@@ -761,7 +810,7 @@ export default function App() {
         saveVentas([...salesToInsert, ...ventas]);
         saveStock(stockUpdates);
       }
-      setIsSyncing(true);
+      setIsSyncing(false);
     } else {
       saveVentas([...salesToInsert, ...ventas]);
       saveStock(stockUpdates);
@@ -836,7 +885,7 @@ export default function App() {
       total_ventas_sistema: expectedTotal,
       diferencia: diff,
       efectivo_acumulado: newAcc,
-      cerrado_por: currentWorker
+      cerrado_por: loggedInUser ? loggedInUser.name : 'Desconocido'
     };
 
     if (supabase) {
@@ -866,7 +915,7 @@ export default function App() {
     if (telegramConfig.enableOnClose && telegramConfig.botToken && telegramConfig.chatId) {
       const msg = `📦 *CIERRE DE CAJA DIARIO - Sloppy Tunas*\n\n` +
                   `📆 *Fecha:* ${todayStr}\n` +
-                  `👤 *Vendedor:* ${currentWorker}\n` +
+                  `👤 *Vendedor:* ${loggedInUser ? loggedInUser.name : 'Desconocido'}\n` +
                   `-------------------------------\n` +
                   `💵 *Efectivo Contado:* ${cash.toFixed(2)} ${currencySymbol}\n` +
                   `💳 *Tarjetas Datáfono:* ${card.toFixed(2)} ${currencySymbol}\n` +
@@ -975,7 +1024,6 @@ export default function App() {
     const { category, oldName, newName } = editingModel;
     if (!newName.trim()) return;
 
-    // Update models catalog
     const currentModels = catalogModels[category] || [];
     const nextModels = currentModels.map(m => m === oldName ? newName.trim() : m);
     
@@ -986,7 +1034,6 @@ export default function App() {
 
     setCatalogModels(updatedModels);
 
-    // Update stock records corresponding to this model name
     const nextStock = stock.map(s => {
       if (s.producto === category && s.modelo === oldName) {
         return {
@@ -1066,20 +1113,28 @@ export default function App() {
     saveStock(stockUpdates);
   };
 
-  // Workers dynamic management
+  // Workers dynamic management with PINs and Roles
   const handleAddWorker = () => {
     if (!isAdmin) {
       alert("Se requiere perfil Administrador.");
       return;
     }
-    if (!newWorkerName) return;
-    if (workers.includes(newWorkerName)) {
+    if (!newWorkerName || !newWorkerPin) {
+      alert("Rellena nombre y PIN.");
+      return;
+    }
+    if (workers.some(w => w.name.toLowerCase() === newWorkerName.toLowerCase())) {
       alert("Este trabajador ya existe.");
       return;
     }
-    setWorkers([...workers, newWorkerName]);
+    setWorkers([...workers, {
+      name: newWorkerName,
+      role: newWorkerRole,
+      pin: newWorkerPin
+    }]);
     setNewWorkerName('');
-    alert("Trabajador registrado.");
+    setNewWorkerPin('0000');
+    alert(`Trabajador ${newWorkerName} registrado.`);
   };
 
   const handleRemoveWorker = (name) => {
@@ -1087,11 +1142,11 @@ export default function App() {
       alert("Se requiere perfil Administrador.");
       return;
     }
-    if (name === 'Aitor') {
-      alert("El administrador Aitor no puede eliminarse.");
+    if (name === 'Aitor' || name === 'Marc') {
+      alert("Los administradores principales no pueden eliminarse.");
       return;
     }
-    setWorkers(workers.filter(w => w !== name));
+    setWorkers(workers.filter(w => w.name !== name));
   };
 
   // Historical years management
@@ -1204,8 +1259,11 @@ export default function App() {
 
   // Direct cell editing of stock actual numbers - HEALED TO PERMIT DELETION/BACKSPACE TYPING
   const handleStockCellChange = (id, value) => {
+    if (!isAdmin) {
+      alert("Acceso denegado. Se requiere cuenta de Administrador para modificar stock.");
+      return;
+    }
     if (value === '') {
-      // Allow the cashier to clear the input value so they can type another digit
       const next = stock.map(s => (s.id === id ? { ...s, cantidad_actual: 0 } : s));
       saveStock(next);
       return;
@@ -1228,6 +1286,10 @@ export default function App() {
   };
 
   const handleStockAdjust = (id, delta) => {
+    if (!isAdmin) {
+      alert("Acceso denegado. Se requiere cuenta de Administrador.");
+      return;
+    }
     const next = stock.map(s => {
       if (s.id === id) {
         return { ...s, cantidad_actual: Math.max(0, s.cantidad_actual + delta) };
@@ -1503,13 +1565,11 @@ export default function App() {
       let comparativeVal = null;
       if (hasRealTrajectory) {
         comparativeVal = SEED_HISTORICAL_TRAJECTORIES[chartCompareYear][index - 1] || null;
-        // If the real trajectory doesn't go up to the current index, stay at the final total
         if (comparativeVal === null && index > SEED_HISTORICAL_TRAJECTORIES[chartCompareYear].length) {
           const arr = SEED_HISTORICAL_TRAJECTORIES[chartCompareYear];
           comparativeVal = arr[arr.length - 1];
         }
       } else {
-        // Smart fallback scaling using 2025 trajectory curve
         const compareYearTotal = historicalYears[chartCompareYear]?.total || 31063.20;
         const baseRatio = compareYearTotal / 31063.20;
         const rawHistoricalValue = SEED_HISTORICAL_TRAJECTORIES[2025][index - 1] || null;
@@ -1544,6 +1604,66 @@ export default function App() {
     );
   }, [stock, inventorySearch]);
 
+  // --- LOGIN PANEL FOR UNAUTHENTICATED SESSIONS ---
+  if (!loggedInUser) {
+    return (
+      <div className="login-screen" style={{
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: '#081217',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: 'var(--font-family)',
+        color: '#f1f5f9'
+      }}>
+        <div className="card fade-in" style={{ width: '100%', maxWidth: '400px', backgroundColor: '#0f1c24', borderColor: '#1a2d3a', textAlign: 'center', padding: '2.5rem' }}>
+          <div className="logo-icon" style={{ margin: '0 auto 1rem auto', width: '60px', height: '60px', fontSize: '2rem' }}>ST</div>
+          <h2 style={{ color: '#21c4a1', marginBottom: '0.25rem' }}>Sloppy Tunas</h2>
+          <span style={{ fontSize: '0.75rem', color: '#94a3b8', letterSpacing: '0.1em', fontWeight: 'bold' }}>TPV SANTA MARKET</span>
+          
+          <form onSubmit={handleLoginSubmit} style={{ marginTop: '2rem', textAlign: 'left' }}>
+            <div className="form-group">
+              <label className="form-label" style={{ color: '#94a3b8' }}>Selecciona tu usuario</label>
+              <select 
+                value={loginSelectedUser} 
+                onChange={(e) => setLoginSelectedUser(e.target.value)} 
+                className="form-input"
+                style={{ backgroundColor: '#142530', borderColor: '#1a2d3a', color: '#f1f5f9' }}
+              >
+                {workers.map(w => <option key={w.name} value={w.name}>{w.name} ({w.role === 'ADMIN' ? 'Admin' : 'Vendedor'})</option>)}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" style={{ color: '#94a3b8' }}>Código PIN de Acceso</label>
+              <input 
+                type="password" 
+                maxLength="4"
+                placeholder="••••"
+                value={loginPin}
+                onChange={(e) => setLoginPin(e.target.value)}
+                className="form-input"
+                style={{ backgroundColor: '#142530', borderColor: '#1a2d3a', color: '#f1f5f9', textAlign: 'center', fontSize: '1.5rem', letterSpacing: '0.5em' }}
+                required
+              />
+            </div>
+
+            {loginError && (
+              <div style={{ color: '#e05a47', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '1rem', textAlign: 'center' }}>
+                ⚠️ {loginError}
+              </div>
+            )}
+
+            <button type="submit" className="btn btn-accent" style={{ width: '100%', marginTop: '1rem', color: '#081217', fontWeight: 800 }}>
+              Ingresar al TPV
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
       {/* SIDEBAR */}
@@ -1569,26 +1689,26 @@ export default function App() {
           <button onClick={() => setActiveTab('analytics')} className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`}>
             <TrendingUp className="nav-item-icon" /> Comparativas & KPIs
           </button>
-          <button onClick={() => setActiveTab('expenses')} className={`nav-item ${activeTab === 'expenses' ? 'active' : ''}`}>
-            <DollarSign className="nav-item-icon" /> Gastos & P&L
-          </button>
-          <button onClick={() => setActiveTab('settings')} className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}>
-            <Settings className="nav-item-icon" /> Configuración
-          </button>
+          {isAdmin && (
+            <button onClick={() => setActiveTab('expenses')} className={`nav-item ${activeTab === 'expenses' ? 'active' : ''}`}>
+              <DollarSign className="nav-item-icon" /> Gastos & P&L
+            </button>
+          )}
+          {isAdmin && (
+            <button onClick={() => setActiveTab('settings')} className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}>
+              <Settings className="nav-item-icon" /> Configuración
+            </button>
+          )}
         </nav>
 
         <div className="sidebar-footer">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{
-              width: '8px', 
-              height: '8px', 
-              borderRadius: '50%', 
-              backgroundColor: isSupabaseConnected ? 'var(--teal-accent)' : 'var(--coral-accent)'
-            }}></span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--tuna-primary)', fontWeight: 600 }}>
-              {isSupabaseConnected ? 'SUPABASE CONECTADO' : 'MODO LOCAL ACTIVO'}
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem' }}>
+            <UserCheck size={14} color="var(--teal-accent)" />
+            <span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>{loggedInUser.name} ({loggedInUser.role})</span>
           </div>
+          <button onClick={handleLogout} className="btn btn-danger" style={{ padding: '0.35rem', fontSize: '0.7rem', width: '100%' }}>
+            <LogOut size={12} /> Cerrar Sesión
+          </button>
         </div>
       </aside>
 
@@ -1603,9 +1723,6 @@ export default function App() {
         <a onClick={() => setActiveTab('stock')} className={`mobile-nav-item ${activeTab === 'stock' ? 'active' : ''}`}>
           <Layers size={20} /> Stock
         </a>
-        <a onClick={() => setActiveTab('expenses')} className={`mobile-nav-item ${activeTab === 'expenses' ? 'active' : ''}`}>
-          <DollarSign size={20} /> P&L
-        </a>
       </nav>
 
       {/* MAIN CONTENT */}
@@ -1613,7 +1730,7 @@ export default function App() {
         <header className="top-bar no-print">
           <div>
             <h2 style={{ fontSize: '1.15rem', fontWeight: 900 }}>{eventConfig.nombre}</h2>
-            <span style={{ fontSize: '0.8rem', color: 'var(--tuna-600)' }}>Cajero activo: <strong>{currentWorker}</strong> ({isAdmin ? 'Administrador' : 'Vendedor'})</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--tuna-600)' }}>Sesión activa: <strong>{loggedInUser.name}</strong> ({loggedInUser.role})</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <button 
@@ -1624,15 +1741,6 @@ export default function App() {
             >
               {darkMode ? <Sun size={15} color="var(--amber-accent)" /> : <Moon size={15} />}
             </button>
-
-            <select 
-              value={currentWorker} 
-              onChange={(e) => setCurrentWorker(e.target.value)} 
-              className="form-input" 
-              style={{ width: 'auto', padding: '0.4rem 1.8rem 0.4rem 0.8rem', fontSize: '0.8rem' }}
-            >
-              {workers.map(w => <option key={w} value={w}>{w}</option>)}
-            </select>
 
             <button 
               onClick={() => setShowClosureModal(true)} 
@@ -1650,7 +1758,7 @@ export default function App() {
             <h2 style={{ fontSize: '14px', margin: '0' }}>SLOPPY TUNAS</h2>
             <p style={{ margin: '2px 0', fontSize: '10px' }}>{eventConfig.nombre}</p>
             <p style={{ margin: '2px 0', fontSize: '10px' }}>Fecha cierre: {new Date().toLocaleDateString()}</p>
-            <p style={{ margin: '2px 0', fontSize: '10px' }}>Cerrador por: {currentWorker}</p>
+            <p style={{ margin: '2px 0', fontSize: '10px' }}>Cerrador por: {loggedInUser.name}</p>
           </div>
           <hr style={{ border: 'none', borderTop: '1px dashed #000', margin: '10px 0' }} />
           <div style={{ fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
@@ -1712,7 +1820,7 @@ export default function App() {
                   <button onClick={() => setShowMorningModal(true)} className="btn btn-accent" style={{ color: 'var(--tuna-950)' }}>
                     Ver Plan de Apertura
                   </button>
-                  {telegramConfig.botToken && (
+                  {telegramConfig.botToken && isAdmin && (
                     <button onClick={handleSendMorningReport} className="btn btn-secondary" style={{ border: '1px solid rgba(255,255,255,0.2)', color: '#ffffff' }}>
                       <Send size={14} /> Enviar a Telegram
                     </button>
@@ -1815,13 +1923,15 @@ export default function App() {
                 <div className="card" style={{ marginBottom: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                     <h3 style={{ margin: 0 }}>Registro Rápido de Venta</h3>
-                    <button 
-                      onClick={() => setShowCatalogModal(true)} 
-                      className="btn btn-secondary" 
-                      style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-                    >
-                      <Edit3 size={14} /> Gestionar Catálogo
-                    </button>
+                    {isAdmin && (
+                      <button 
+                        onClick={() => setShowCatalogModal(true)} 
+                        className="btn btn-secondary" 
+                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                      >
+                        <Edit3 size={14} /> Gestionar Catálogo
+                      </button>
+                    )}
                   </div>
                   
                   <div className="form-group">
@@ -1985,7 +2095,7 @@ export default function App() {
                     </div>
                   ))}
                   {cart.length === 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--tuna-600)', gap: '10px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyIntent: 'center', height: '100%', color: 'var(--tuna-600)', gap: '10px' }}>
                       <ShoppingBag size={38} />
                       <span>Ticket sin artículos</span>
                     </div>
@@ -2067,7 +2177,9 @@ export default function App() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
                   <h3 style={{ margin: 0 }}>Stock e Inventario Activo</h3>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--tuna-600)' }}>Modifica las casillas numéricas directamente según lo que tengas en el stand.</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--tuna-600)' }}>
+                    {isAdmin ? 'Modifica las casillas numéricas directamente según lo que tengas en el stand.' : 'Consulta la disponibilidad de modelos y tallas.'}
+                  </span>
                 </div>
                 
                 {/* SEARCH BAR */}
@@ -2092,8 +2204,8 @@ export default function App() {
                       <th>Modelo</th>
                       <th>Talla</th>
                       <th>Stock Inicial</th>
-                      <th>Stock Actual (Editable)</th>
-                      <th>Ajustar</th>
+                      <th>Stock Actual</th>
+                      {isAdmin && <th>Ajustar</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -2111,28 +2223,34 @@ export default function App() {
                           <td><span className="badge" style={{ backgroundColor: 'var(--sand-200)', color: 'var(--tuna-primary)' }}>{item.talla}</span></td>
                           <td style={{ color: 'var(--tuna-600)' }}>{item.cantidad_inicial}</td>
                           <td className={cls} style={{ width: '130px' }}>
-                            <input 
-                              type="number" 
-                              value={item.cantidad_actual === 0 ? '' : item.cantidad_actual} 
-                              placeholder="0"
-                              onChange={(e) => handleStockCellChange(item.id, e.target.value)}
-                              className="stock-edit-input"
-                              style={{ width: '65px', textAlign: 'center', border: '1px solid var(--sand-300)', borderRadius: '4px', padding: '2px' }}
-                            />
+                            {isAdmin ? (
+                              <input 
+                                type="number" 
+                                value={item.cantidad_actual === 0 ? '' : item.cantidad_actual} 
+                                placeholder="0"
+                                onChange={(e) => handleStockCellChange(item.id, e.target.value)}
+                                className="stock-edit-input"
+                                style={{ width: '65px', textAlign: 'center', border: '1px solid var(--sand-300)', borderRadius: '4px', padding: '2px' }}
+                              />
+                            ) : (
+                              <span style={{ fontWeight: 'bold' }}>{item.cantidad_actual} uds</span>
+                            )}
                           </td>
-                          <td>
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                              <button onClick={() => handleStockAdjust(item.id, -1)} className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>-1</button>
-                              <button onClick={() => handleStockAdjust(item.id, 1)} className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>+1</button>
-                              <button onClick={() => handleStockAdjust(item.id, 10)} className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>+10</button>
-                            </div>
-                          </td>
+                          {isAdmin && (
+                            <td>
+                              <div style={{ display: 'flex', gap: '4px' }}>
+                                <button onClick={() => handleStockAdjust(item.id, -1)} className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>-1</button>
+                                <button onClick={() => handleStockAdjust(item.id, 1)} className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>+1</button>
+                                <button onClick={() => handleStockAdjust(item.id, 10)} className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>+10</button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
                     {filteredStock.length === 0 && (
                       <tr>
-                        <td colSpan="6" style={{ textAlign: 'center', color: 'var(--tuna-600)', padding: '2rem 0' }}>Ningún producto coincide con el filtro de búsqueda.</td>
+                        <td colSpan={isAdmin ? 6 : 5} style={{ textAlign: 'center', color: 'var(--tuna-600)', padding: '2rem 0' }}>Ningún producto coincide con el filtro de búsqueda.</td>
                       </tr>
                     )}
                   </tbody>
@@ -2178,23 +2296,39 @@ export default function App() {
 
               {/* Interactive YOY trajectory SVG graph */}
               <div className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                   <div>
                     <h3 style={{ margin: 0 }}>Trayectoria de Ventas Acumuladas: 2026 vs Comparativa YOY</h3>
-                    <p style={{ fontSize: 0.85 + 'rem', color: 'var(--tuna-600)', margin: 0 }}>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--tuna-600)', margin: 0 }}>
                       Compara el progreso diario del 2026 con el año histórico real que elijas del desplegable.
                     </p>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>Comparar con:</span>
-                    <select 
-                      value={chartCompareYear} 
-                      onChange={(e) => setChartCompareYear(e.target.value)} 
-                      className="form-input" 
-                      style={{ margin: 0, width: 'auto', padding: '0.25rem 1.75rem 0.25rem 0.5rem', fontSize: '0.8rem' }}
-                    >
-                      {Object.keys(historicalYears).map(yr => <option key={yr} value={yr}>{yr}</option>)}
-                    </select>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    
+                    {/* OVERLAY CHECKBOX */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <input 
+                        type="checkbox" 
+                        id="overlayCheck" 
+                        checked={overlayAllYears} 
+                        onChange={(e) => setOverlayAllYears(e.target.checked)} 
+                      />
+                      <label htmlFor="overlayCheck" className="form-label" style={{ marginBottom: 0, cursor: 'pointer', fontSize: '0.8rem' }}>Superponer todos los años</label>
+                    </div>
+
+                    {!overlayAllYears && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>Comparar con:</span>
+                        <select 
+                          value={chartCompareYear} 
+                          onChange={(e) => setChartCompareYear(e.target.value)} 
+                          className="form-input" 
+                          style={{ margin: 0, width: 'auto', padding: '0.25rem 1.75rem 0.25rem 0.5rem', fontSize: '0.8rem' }}
+                        >
+                          {Object.keys(historicalYears).map(yr => <option key={yr} value={yr}>{yr}</option>)}
+                        </select>
+                      </div>
+                    )}
                   </div>
                 </div>
                 
@@ -2209,18 +2343,51 @@ export default function App() {
                     <text x="10" y="124" fill="var(--tuna-700)" fontSize="8">15k€</text>
                     <text x="10" y="214" fill="var(--tuna-700)" fontSize="8">0€</text>
 
-                    {/* Historical trajectory line (Dynamically scaled to selected comparison year) */}
-                    {(() => {
-                      const pts = salesChartData
-                        .filter(d => d.historicalCompare !== null)
-                        .map(d => {
-                          const x = 40 + (d.dayIndex / (eventConfig.diasTotales || 1)) * 540;
-                          const y = 210 - (d.historicalCompare / 31063.2) * 190;
-                          return `${x},${y}`;
-                        })
-                        .join(' ');
-                      return <polyline fill="none" stroke="var(--amber-accent)" strokeWidth="2" strokeDasharray="4" points={pts} />;
-                    })()}
+                    {/* OVERLAID TRAJECTORY PATHS (2023, 2024, 2025) */}
+                    {overlayAllYears ? (
+                      <>
+                        {/* 2023 Line (Amber) */}
+                        {(() => {
+                          const pts = SEED_HISTORICAL_TRAJECTORIES[2023].map((val, idx) => {
+                            const x = 40 + ((idx + 1) / (eventConfig.diasTotales || 1)) * 540;
+                            const y = 210 - (val / 31063.2) * 190;
+                            return `${x},${y}`;
+                          }).join(' ');
+                          return <polyline fill="none" stroke="#fbbf24" strokeWidth="2" strokeDasharray="3" points={pts} title="2023" />;
+                        })()}
+                        {/* 2024 Line (Blue) */}
+                        {(() => {
+                          const pts = SEED_HISTORICAL_TRAJECTORIES[2024].map((val, idx) => {
+                            const x = 40 + ((idx + 1) / (eventConfig.diasTotales || 1)) * 540;
+                            const y = 210 - (val / 31063.2) * 190;
+                            return `${x},${y}`;
+                          }).join(' ');
+                          return <polyline fill="none" stroke="#3b82f6" strokeWidth="2" strokeDasharray="3" points={pts} title="2024" />;
+                        })()}
+                        {/* 2025 Line (Red) */}
+                        {(() => {
+                          const pts = SEED_HISTORICAL_TRAJECTORIES[2025].map((val, idx) => {
+                            const x = 40 + ((idx + 1) / (eventConfig.diasTotales || 1)) * 540;
+                            const y = 210 - (val / 31063.2) * 190;
+                            return `${x},${y}`;
+                          }).join(' ');
+                          return <polyline fill="none" stroke="#ef4444" strokeWidth="2" strokeDasharray="3" points={pts} title="2025" />;
+                        })()}
+                      </>
+                    ) : (
+                      /* SINGLE COMPARED LINE */
+                      (() => {
+                        const pts = salesChartData
+                          .filter(d => d.historicalCompare !== null)
+                          .map(d => {
+                            const x = 40 + (d.dayIndex / (eventConfig.diasTotales || 1)) * 540;
+                            const y = 210 - (d.historicalCompare / 31063.2) * 190;
+                            return `${x},${y}`;
+                          })
+                          .join(' ');
+                        return <polyline fill="none" stroke="var(--amber-accent)" strokeWidth="2" strokeDasharray="4" points={pts} />;
+                      })()
+                    )}
 
                     {/* 2026 Trajectory */}
                     {(() => {
@@ -2237,6 +2404,78 @@ export default function App() {
                     })()}
                   </svg>
                 </div>
+                {/* Graph Legend */}
+                <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', marginTop: '10px', fontSize: '0.8rem' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span style={{ width: '12px', height: '3px', backgroundColor: 'var(--tuna-primary)', display: 'inline-block' }}></span> 2026 (Actual)
+                  </span>
+                  {overlayAllYears ? (
+                    <>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span style={{ width: '12px', height: '3px', backgroundColor: '#fbbf24', display: 'inline-block' }}></span> 2023
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span style={{ width: '12px', height: '3px', backgroundColor: '#3b82f6', display: 'inline-block' }}></span> 2024
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span style={{ width: '12px', height: '3px', backgroundColor: '#ef4444', display: 'inline-block' }}></span> 2025
+                      </span>
+                    </>
+                  ) : (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ width: '12px', height: '3px', backgroundColor: 'var(--amber-accent)', display: 'inline-block' }}></span> Comparando con {chartCompareYear}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* DAILY AVERAGE COMPARISON TABLE */}
+              <div className="card">
+                <h3>Facturación Media Diaria YOY vs Año Actual</h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--tuna-600)', marginBottom: '1.25rem' }}>
+                  Compara el ritmo diario de ventas promedio de este año con los resultados históricos reales.
+                </p>
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Año Temporada</th>
+                        <th>Facturación Total</th>
+                        <th>Días Operados</th>
+                        <th>Venta Media Diaria</th>
+                        <th>Comparado con 2026</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.keys(historicalYears).map(yr => {
+                        const data = historicalYears[yr];
+                        const avg = data.total / (data.dias || 1);
+                        const curAvg = stats.mediaDiariaReal;
+                        const diffPct = avg > 0 ? ((curAvg - avg) / avg) * 100 : 0;
+                        const isHigher = curAvg >= avg;
+
+                        return (
+                          <tr key={yr}>
+                            <td><strong>Temporada {yr}</strong></td>
+                            <td>{parseFloat(data.total || 0).toFixed(2)} {currencySymbol}</td>
+                            <td>{data.dias} días</td>
+                            <td style={{ color: 'var(--tuna-primary)', fontWeight: 'bold' }}>{avg.toFixed(2)} {currencySymbol}/día</td>
+                            <td style={{ color: isHigher ? 'var(--teal-dark)' : 'var(--coral-accent)', fontWeight: 'bold' }}>
+                              {diffPct >= 0 ? `+${diffPct.toFixed(1)}%` : `${diffPct.toFixed(1)}%`}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      <tr style={{ backgroundColor: 'rgba(33,196,161,0.06)' }}>
+                        <td><strong>Temporada 2026 (Actual)</strong></td>
+                        <td>{stats.totalAcumulado.toFixed(2)} {currencySymbol}</td>
+                        <td>{eventConfig.diasTranscurridos} días</td>
+                        <td style={{ color: 'var(--teal-dark)', fontWeight: 'bold' }}>{stats.mediaDiariaReal.toFixed(2)} {currencySymbol}/día</td>
+                        <td style={{ color: 'var(--tuna-700)', fontWeight: 'bold' }}>—</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {/* Product performance */}
@@ -2248,11 +2487,11 @@ export default function App() {
                       <tr>
                         <th>Producto</th>
                         <th>Mult. PVP</th>
-                        <th>Coste Medio</th>
+                        {isAdmin && <th>Coste Medio</th>}
                         <th>PVP Base</th>
                         <th>Uds Vendidas</th>
                         <th>Ingresos</th>
-                        <th>Margen Neto</th>
+                        {isAdmin && <th>Margen Neto</th>}
                         <th>% Uds</th>
                         <th>% Benef.</th>
                         <th>Diferencial Vol/Rent.</th>
@@ -2267,11 +2506,11 @@ export default function App() {
                           <tr key={item.name}>
                             <td><strong>{item.name}</strong></td>
                             <td><span className="badge" style={{ backgroundColor: 'var(--sand-200)', color: 'var(--tuna-primary)' }}>x{item.multiplier}</span></td>
-                            <td>{(item.costUnit || 0).toFixed(2)} {currencySymbol}</td>
+                            {isAdmin && <td>{(item.costUnit || 0).toFixed(2)} {currencySymbol}</td>}
                             <td>{(item.pvpUnit || 0).toFixed(2)} {currencySymbol}</td>
                             <td>{item.unitsSold} uds</td>
                             <td>{(item.revenue || 0).toFixed(2)} {currencySymbol}</td>
-                            <td style={{ color: 'var(--teal-dark)' }}>{(item.profit || 0).toFixed(2)} {currencySymbol}</td>
+                            {isAdmin && <td style={{ color: 'var(--teal-dark)' }}>{(item.profit || 0).toFixed(2)} {currencySymbol}</td>}
                             <td>{item.pctUnits}%</td>
                             <td>{item.pctProfit}%</td>
                             <td style={{ color: cls, fontWeight: 'bold' }}>
@@ -2288,7 +2527,7 @@ export default function App() {
           )}
 
           {/* TAB 5: GASTOS & P&L */}
-          {activeTab === 'expenses' && (
+          {activeTab === 'expenses' && isAdmin && (
             <div className="fade-in">
               {/* Dynamic P&L Account */}
               <div className="card" style={{ background: 'linear-gradient(135deg, var(--tuna-primary), var(--tuna-900))', color: '#ffffff' }}>
@@ -2416,7 +2655,7 @@ export default function App() {
                     <div className="form-group">
                       <label className="form-label">Vendedor / Empleado</label>
                       <select value={payrollWorker} onChange={(e) => setPayrollWorker(e.target.value)} className="form-input">
-                        {workers.map(w => <option key={w} value={w}>{w}</option>)}
+                        {workers.map(w => <option key={w.name} value={w.name}>{w.name}</option>)}
                       </select>
                     </div>
                     <div className="grid grid-cols-2">
@@ -2447,46 +2686,54 @@ export default function App() {
           )}
 
           {/* TAB 6: CONFIGURACION */}
-          {activeTab === 'settings' && (
+          {activeTab === 'settings' && isAdmin && (
             <div className="fade-in">
               <div className="grid grid-cols-2">
                 
-                {/* Workers Card */}
+                {/* Workers Card with Login PIN CRUD */}
                 <div className="card">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem' }}>
                     <UserPlus size={20} color="var(--tuna-primary)" />
                     <h3>Gestión de Trabajadores del Turno</h3>
                   </div>
                   <p style={{ fontSize: '0.85rem', color: 'var(--tuna-600)', marginBottom: '1.25rem' }}>
-                    Añade o elimina los nombres del personal de ventas que este verano operarán en el market.
+                    Añade o elimina perfiles de vendedores asignándoles un PIN de 4 dígitos para acceder al TPV.
                   </p>
                   
-                  {isAdmin ? (
-                    <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem' }}>
-                      <input 
-                        type="text" 
-                        placeholder="Ej. Sofia, Lucas" 
-                        value={newWorkerName} 
-                        onChange={(e) => setNewWorkerName(e.target.value)} 
-                        className="form-input" 
-                        style={{ margin: 0 }}
-                      />
-                      <button onClick={handleAddWorker} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Plus size={16} /> Añadir
-                      </button>
+                  <div style={{ backgroundColor: 'var(--sand-100)', padding: '1rem', borderRadius: 'var(--radius-md)', marginBottom: '1rem' }}>
+                    <div className="grid grid-cols-3" style={{ gap: '8px' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Nombre</label>
+                        <input type="text" placeholder="Ej. Sofia" value={newWorkerName} onChange={(e) => setNewWorkerName(e.target.value)} className="form-input" style={{ margin: 0 }} />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Rol</label>
+                        <select value={newWorkerRole} onChange={(e) => setNewWorkerRole(e.target.value)} className="form-input" style={{ margin: 0 }}>
+                          <option value="CASHIER">Vendedor</option>
+                          <option value="ADMIN">Administrador</option>
+                        </select>
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">PIN (4 Digitos)</label>
+                        <input type="text" maxLength="4" placeholder="0000" value={newWorkerPin} onChange={(e) => setNewWorkerPin(e.target.value)} className="form-input" style={{ margin: 0 }} />
+                      </div>
                     </div>
-                  ) : (
-                    <div className="badge badge-card" style={{ marginBottom: '1rem', display: 'block', padding: '0.75rem' }}>
-                      🔒 Requiere cuenta Administrador (Aitor) para añadir trabajadores.
-                    </div>
-                  )}
+                    <button onClick={handleAddWorker} className="btn btn-primary" style={{ width: '100%', marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+                      <Plus size={16} /> Registrar Empleado
+                    </button>
+                  </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {workers.map(w => (
-                      <div key={w} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 1rem', backgroundColor: 'var(--sand-100)', borderRadius: 'var(--radius-md)' }}>
-                        <span style={{ fontWeight: 600 }}>{w} {w === 'Aitor' && <span style={{ fontSize: '0.7rem', color: 'var(--teal-dark)' }}>(Admin)</span>}</span>
-                        {w !== 'Aitor' && isAdmin && (
-                          <button onClick={() => handleRemoveWorker(w)} style={{ color: 'var(--coral-accent)', border: 'none', background: 'none', cursor: 'pointer' }}>
+                      <div key={w.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 1rem', backgroundColor: 'var(--sand-100)', borderRadius: 'var(--radius-md)' }}>
+                        <div>
+                          <span style={{ fontWeight: 600 }}>{w.name}</span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--tuna-600)', marginLeft: '10px' }}>
+                            PIN: <code>{w.pin}</code> | Rol: <strong>{w.role}</strong>
+                          </span>
+                        </div>
+                        {w.name !== 'Aitor' && w.name !== 'Marc' && (
+                          <button onClick={() => handleRemoveWorker(w.name)} style={{ color: 'var(--coral-accent)', border: 'none', background: 'none', cursor: 'pointer' }}>
                             <Trash2 size={16} />
                           </button>
                         )}
@@ -2608,21 +2855,15 @@ export default function App() {
                   Configura los balances históricos de otras campañas para realizar la comparación de trayectoria.
                 </p>
 
-                {isAdmin ? (
-                  <div className="grid grid-cols-5" style={{ gap: '8px', marginBottom: '1.5rem' }}>
-                    <input type="number" placeholder="Año" value={newHistYear} onChange={(e) => setNewHistYear(e.target.value)} className="form-input" style={{ margin: 0 }} />
-                    <input type="number" placeholder="Total Facturado" value={newHistTotal} onChange={(e) => setNewHistTotal(e.target.value)} className="form-input" style={{ margin: 0 }} />
-                    <input type="number" placeholder="Días Abiertos" value={newHistDias} onChange={(e) => setNewHistDias(e.target.value)} className="form-input" style={{ margin: 0 }} />
-                    <input type="number" placeholder="Uds Vendidas" value={newHistUds} onChange={(e) => setNewHistUds(e.target.value)} className="form-input" style={{ margin: 0 }} />
-                    <button onClick={handleAddHistYear} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
-                      <Plus size={16} /> Añadir
-                    </button>
-                  </div>
-                ) : (
-                  <div className="badge badge-card" style={{ marginBottom: '1rem', display: 'block', padding: '0.75rem' }}>
-                    🔒 Requiere cuenta Administrador (Aitor) para gestionar datos históricos.
-                  </div>
-                )}
+                <div className="grid grid-cols-5" style={{ gap: '8px', marginBottom: '1.5rem' }}>
+                  <input type="number" placeholder="Año" value={newHistYear} onChange={(e) => setNewHistYear(e.target.value)} className="form-input" style={{ margin: 0 }} />
+                  <input type="number" placeholder="Total Facturado" value={newHistTotal} onChange={(e) => setNewHistTotal(e.target.value)} className="form-input" style={{ margin: 0 }} />
+                  <input type="number" placeholder="Días Abiertos" value={newHistDias} onChange={(e) => setNewHistDias(e.target.value)} className="form-input" style={{ margin: 0 }} />
+                  <input type="number" placeholder="Uds Vendidas" value={newHistUds} onChange={(e) => setNewHistUds(e.target.value)} className="form-input" style={{ margin: 0 }} />
+                  <button onClick={handleAddHistYear} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+                    <Plus size={16} /> Añadir
+                  </button>
+                </div>
               </div>
 
               {/* Database integrations */}
@@ -2640,16 +2881,8 @@ export default function App() {
                       <label className="form-label">Anon Public Key</label>
                       <input type="password" value={supabaseKey} onChange={(e) => setSupabaseKey(e.target.value)} className="form-input" />
                     </div>
-                    {isAdmin ? (
-                      <>
-                        <button onClick={handleSaveConnection} className="btn btn-primary" style={{ width: '100%', marginBottom: '0.5rem' }}>Guardar y Conectar</button>
-                        <button onClick={handleResetDatabase} className="btn btn-danger" style={{ width: '100%' }}>Reiniciar Datos Locales</button>
-                      </>
-                    ) : (
-                      <div className="badge badge-card" style={{ textAlign: 'center' }}>
-                        🔒 Se requiere cuenta de Admin para modificar Supabase.
-                      </div>
-                    )}
+                    <button onClick={handleSaveConnection} className="btn btn-primary" style={{ width: '100%', marginBottom: '0.5rem' }}>Guardar y Conectar</button>
+                    <button onClick={handleResetDatabase} className="btn btn-danger" style={{ width: '100%' }}>Reiniciar Datos Locales</button>
                   </div>
 
                   <div>
@@ -2687,7 +2920,7 @@ export default function App() {
       </main>
 
       {/* QUICK CATALOG CRUD DIALOG MODAL (ACCESIBLE DIRECTAMENTE DESDE TPV CAJA) */}
-      {showCatalogModal && (
+      {showCatalogModal && isAdmin && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -2716,38 +2949,29 @@ export default function App() {
               {/* Category CRUD */}
               <div style={{ borderRight: '1px solid var(--sand-200)', paddingRight: '1.5rem' }}>
                 
-                {/* Form to add a new category */}
                 <h4 style={{ marginBottom: '1rem' }}>Añadir Categoría de Producto</h4>
-                {isAdmin ? (
-                  <>
-                    <div className="form-group">
-                      <label className="form-label">Nombre de Categoría</label>
-                      <input type="text" placeholder="Ej. Gorras, Sudaderas" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} className="form-input" />
-                    </div>
+                <div className="form-group">
+                  <label className="form-label">Nombre de Categoría</label>
+                  <input type="text" placeholder="Ej. Gorras, Sudaderas" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} className="form-input" />
+                </div>
 
-                    <div className="grid grid-cols-2">
-                      <div className="form-group">
-                        <label className="form-label">Coste Unitario (€)</label>
-                        <input type="number" placeholder="6.50" value={newCatCoste} onChange={(e) => setNewCatCoste(e.target.value)} className="form-input" />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">PVP Base (€)</label>
-                        <input type="number" placeholder="25.00" value={newCatPvp} onChange={(e) => setNewCatPvp(e.target.value)} className="form-input" />
-                      </div>
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Tallas disponibles (Separadas por comas)</label>
-                      <input type="text" placeholder="S, M, L, XL" value={newCatTallas} onChange={(e) => setNewCatTallas(e.target.value)} className="form-input" />
-                    </div>
-
-                    <button onClick={handleAddCategory} className="btn btn-primary" style={{ width: '100%' }}>Añadir Categoría</button>
-                  </>
-                ) : (
-                  <div className="badge badge-card" style={{ marginBottom: '1rem' }}>
-                    🔒 Requiere cuenta Administrador (Aitor) para crear categorías.
+                <div className="grid grid-cols-2">
+                  <div className="form-group">
+                    <label className="form-label">Coste Unitario (€)</label>
+                    <input type="number" placeholder="6.50" value={newCatCoste} onChange={(e) => setNewCatCoste(e.target.value)} className="form-input" />
                   </div>
-                )}
+                  <div className="form-group">
+                    <label className="form-label">PVP Base (€)</label>
+                    <input type="number" placeholder="25.00" value={newCatPvp} onChange={(e) => setNewCatPvp(e.target.value)} className="form-input" />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Tallas disponibles (Separadas por comas)</label>
+                  <input type="text" placeholder="S, M, L, XL" value={newCatTallas} onChange={(e) => setNewCatTallas(e.target.value)} className="form-input" />
+                </div>
+
+                <button onClick={handleAddCategory} className="btn btn-primary" style={{ width: '100%' }}>Añadir Categoría</button>
 
                 {/* Listing Active Categories with Inline MODIFICATION */}
                 <div style={{ marginTop: '1.5rem' }}>
@@ -2776,12 +3000,10 @@ export default function App() {
                                 Coste: {catalogCategories[cat].coste}€ | PVP: {catalogCategories[cat].pvp}€
                               </div>
                             </div>
-                            {isAdmin && (
-                              <div style={{ display: 'flex', gap: '6px' }}>
-                                <button onClick={() => handleStartEditingCategory(cat)} className="btn btn-secondary" style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}>Modificar</button>
-                                <button onClick={() => handleRemoveCategory(cat)} style={{ color: 'var(--coral-accent)', cursor: 'pointer', border: 'none', background: 'none', fontSize: '0.8rem' }}>Eliminar</button>
-                              </div>
-                            )}
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button onClick={() => handleStartEditingCategory(cat)} className="btn btn-secondary" style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}>Modificar</button>
+                              <button onClick={() => handleRemoveCategory(cat)} style={{ color: 'var(--coral-accent)', cursor: 'pointer', border: 'none', background: 'none', fontSize: '0.8rem' }}>Eliminar</button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -2793,27 +3015,19 @@ export default function App() {
               {/* Model CRUD */}
               <div>
                 <h4 style={{ marginBottom: '1rem' }}>Añadir Modelo / Diseño</h4>
-                {isAdmin ? (
-                  <>
-                    <div className="form-group">
-                      <label className="form-label">Asociar a Categoría</label>
-                      <select value={newModCategory} onChange={(e) => setNewModCategory(e.target.value)} className="form-input">
-                        {Object.keys(catalogCategories).map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                      </select>
-                    </div>
+                <div className="form-group">
+                  <label className="form-label">Asociar a Categoría</label>
+                  <select value={newModCategory} onChange={(e) => setNewModCategory(e.target.value)} className="form-input">
+                    {Object.keys(catalogCategories).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                  </select>
+                </div>
 
-                    <div className="form-group">
-                      <label className="form-label">Nombre del Modelo</label>
-                      <input type="text" placeholder="Ej. Stripe Blue, Classic Pink" value={newModName} onChange={(e) => setNewModName(e.target.value)} className="form-input" />
-                    </div>
+                <div className="form-group">
+                  <label className="form-label">Nombre del Modelo</label>
+                  <input type="text" placeholder="Ej. Stripe Blue, Classic Pink" value={newModName} onChange={(e) => setNewModName(e.target.value)} className="form-input" />
+                </div>
 
-                    <button onClick={handleAddModel} className="btn btn-primary" style={{ width: '100%' }}>Añadir Modelo</button>
-                  </>
-                ) : (
-                  <div className="badge badge-card" style={{ marginBottom: '1rem' }}>
-                    🔒 Requiere cuenta Administrador (Aitor) para crear modelos.
-                  </div>
-                )}
+                <button onClick={handleAddModel} className="btn btn-primary" style={{ width: '100%' }}>Añadir Modelo</button>
 
                 {/* Model Listing with MODIFICATION support */}
                 <div style={{ marginTop: '1.5rem', maxHeight: '400px', overflowY: 'auto' }}>
@@ -2841,12 +3055,8 @@ export default function App() {
                               ) : (
                                 <>
                                   {mod}
-                                  {isAdmin && (
-                                    <>
-                                      <button onClick={() => handleStartEditingModel(cat, mod)} style={{ color: 'var(--tuna-primary)', cursor: 'pointer', background: 'none', border: 'none', fontSize: '0.65rem' }} title="Modificar nombre">✎</button>
-                                      <button onClick={() => handleRemoveModel(cat, mod)} style={{ color: 'var(--coral-accent)', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
-                                    </>
-                                  )}
+                                  <button onClick={() => handleStartEditingModel(cat, mod)} style={{ color: 'var(--tuna-primary)', cursor: 'pointer', background: 'none', border: 'none', fontSize: '0.65rem' }} title="Modificar nombre">✎</button>
+                                  <button onClick={() => handleRemoveModel(cat, mod)} style={{ color: 'var(--coral-accent)', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
                                 </>
                               )}
 
@@ -2998,7 +3208,7 @@ export default function App() {
                 <button onClick={() => setShowMorningModal(false)} className="btn btn-secondary" style={{ flex: 1 }}>
                   Cerrar
                 </button>
-                {telegramConfig.botToken && (
+                {telegramConfig.botToken && isAdmin && (
                   <button onClick={handleSendMorningReport} className="btn btn-primary" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
                     <Send size={16} /> Enviar a Telegram
                   </button>
