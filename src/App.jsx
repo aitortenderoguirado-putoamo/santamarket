@@ -241,14 +241,75 @@ export default function App() {
     localStorage.setItem('sm_dark_mode', darkMode);
   }, [darkMode]);
 
-  // Migrations / Self Healing local cache
+  // Reseed Stock helper
+  const reseedStock = (categories = catalogCategories, models = catalogModels) => {
+    const initialStock = [];
+    Object.keys(categories).forEach(cat => {
+      const mods = models[cat] || [];
+      const sizes = categories[cat].tallas;
+      mods.forEach(mod => {
+        sizes.forEach(sz => {
+          initialStock.push({
+            id: `${cat}-${mod}-${sz}`,
+            producto: cat,
+            modelo: mod,
+            talla: sz,
+            cantidad_inicial: 50,
+            cantidad_actual: 50
+          });
+        });
+      });
+    });
+    setStock(initialStock);
+    localStorage.setItem('sm_stock', JSON.stringify(initialStock));
+  };
+
+  // --- FORCE AUTO-MIGRATION OF LOCAL STORAGE FOR OUTDATED DATABASES ---
   useEffect(() => {
-    // If Bañadores doesn't contain kid sizes (4, 6, 8, 12) or Camisetas is missing, auto-heal
-    if (!catalogCategories.hasOwnProperty('Camisetas') || (catalogCategories.Bañadores && !catalogCategories.Bañadores.tallas.includes('4'))) {
+    let needsMigration = false;
+
+    // 1. Check Categories
+    const savedCategories = localStorage.getItem('sm_catalog_categories');
+    if (savedCategories) {
+      try {
+        const parsed = JSON.parse(savedCategories);
+        if (!parsed.hasOwnProperty('Camisetas')) {
+          needsMigration = true;
+        }
+      } catch (e) {
+        needsMigration = true;
+      }
+    } else {
+      needsMigration = true;
+    }
+
+    // 2. Check Models
+    const savedModels = localStorage.getItem('sm_catalog_models');
+    if (savedModels) {
+      try {
+        const parsed = JSON.parse(savedModels);
+        // If Camisetas models are still nested under Bañadores, force migration
+        if (parsed.Bañadores && parsed.Bañadores.includes('Catch waves')) {
+          needsMigration = true;
+        }
+        if (!parsed.hasOwnProperty('Camisetas') || parsed.Camisetas.length === 0) {
+          needsMigration = true;
+        }
+      } catch (e) {
+        needsMigration = true;
+      }
+    } else {
+      needsMigration = true;
+    }
+
+    // 3. Perform Migration if necessary
+    if (needsMigration) {
+      console.log("Auto-migrating catalog cache to separate Camisetas and add child sizes...");
       setCatalogCategories(SEED_CATEGORIES);
       setCatalogModels(SEED_MODELS);
       localStorage.setItem('sm_catalog_categories', JSON.stringify(SEED_CATEGORIES));
       localStorage.setItem('sm_catalog_models', JSON.stringify(SEED_MODELS));
+      reseedStock(SEED_CATEGORIES, SEED_MODELS);
     }
   }, []);
 
@@ -281,38 +342,30 @@ export default function App() {
   };
 
   const loadFromLocalStorage = () => {
-    const savedVentas = JSON.parse(localStorage.getItem('sm_ventas') || '[]');
-    const savedGastos = JSON.parse(localStorage.getItem('sm_gastos') || '[]');
-    const savedCierres = JSON.parse(localStorage.getItem('sm_cierres') || '[]');
-    const savedStock = JSON.parse(localStorage.getItem('sm_stock') || '[]');
+    try {
+      const savedVentas = JSON.parse(localStorage.getItem('sm_ventas') || '[]');
+      setVentas(Array.isArray(savedVentas) ? savedVentas : []);
+    } catch(e) { setVentas([]); }
 
-    setVentas(savedVentas);
-    setGastos(savedGastos);
-    setCierres(savedCierres);
+    try {
+      const savedGastos = JSON.parse(localStorage.getItem('sm_gastos') || '[]');
+      setGastos(Array.isArray(savedGastos) ? savedGastos : []);
+    } catch(e) { setGastos([]); }
+
+    try {
+      const savedCierres = JSON.parse(localStorage.getItem('sm_cierres') || '[]');
+      setCierres(Array.isArray(savedCierres) ? savedCierres : []);
+    } catch(e) { setCierres([]); }
     
-    // Seed initial stock mapping catalog if empty
-    if (savedStock.length > 0) {
-      setStock(savedStock);
-    } else {
-      const initialStock = [];
-      Object.keys(catalogCategories).forEach(cat => {
-        const models = catalogModels[cat] || [];
-        const sizes = catalogCategories[cat].tallas;
-        models.forEach(mod => {
-          sizes.forEach(sz => {
-            initialStock.push({
-              id: `${cat}-${mod}-${sz}`,
-              producto: cat,
-              modelo: mod,
-              talla: sz,
-              cantidad_inicial: 50,
-              cantidad_actual: 50
-            });
-          });
-        });
-      });
-      setStock(initialStock);
-      localStorage.setItem('sm_stock', JSON.stringify(initialStock));
+    try {
+      const savedStock = JSON.parse(localStorage.getItem('sm_stock') || '[]');
+      if (Array.isArray(savedStock) && savedStock.length > 0) {
+        setStock(savedStock);
+      } else {
+        reseedStock();
+      }
+    } catch(e) {
+      reseedStock();
     }
   };
 
@@ -387,26 +440,25 @@ export default function App() {
     if (window.confirm("¿Seguro que deseas restaurar el catálogo predeterminado de Sloppy Tunas? Se perderán las personalizaciones actuales de productos.")) {
       setCatalogCategories(SEED_CATEGORIES);
       setCatalogModels(SEED_MODELS);
-      // Re-seed stock cells
-      const initialStock = [];
-      Object.keys(SEED_CATEGORIES).forEach(cat => {
-        const models = SEED_MODELS[cat] || [];
-        const sizes = SEED_CATEGORIES[cat].tallas;
-        models.forEach(mod => {
-          sizes.forEach(sz => {
-            initialStock.push({
-              id: `${cat}-${mod}-${sz}`,
-              producto: cat,
-              modelo: mod,
-              talla: sz,
-              cantidad_inicial: 50,
-              cantidad_actual: 50
-            });
-          });
-        });
-      });
-      saveStock(initialStock);
+      reseedStock(SEED_CATEGORIES, SEED_MODELS);
       alert("Catálogo predeterminado restaurado con éxito.");
+    }
+  };
+
+  // Connection saving
+  const handleSaveConnection = () => {
+    localStorage.setItem('sm_supabase_url', supabaseUrl);
+    localStorage.setItem('sm_supabase_key', supabaseKey);
+    alert("Configuración de base de datos guardada. Cargando...");
+    loadData();
+  };
+
+  // Reset database completely
+  const handleResetDatabase = () => {
+    if (window.confirm("¿Seguro que deseas borrar toda tu base de datos local (ventas, stock y gastos)? Esta acción no se puede deshacer.")) {
+      localStorage.clear();
+      alert("Datos locales borrados. Reiniciando...");
+      window.location.reload();
     }
   };
 
@@ -730,14 +782,18 @@ export default function App() {
     const cost = parseFloat(newCatCoste);
     const pvp = parseFloat(newCatPvp);
 
-    setCatalogCategories({
+    const updatedCategories = {
       ...catalogCategories,
       [newCatName]: { coste: cost, pvp: pvp, tallas: sizes }
-    });
-    setCatalogModels({
+    };
+    const updatedModels = {
       ...catalogModels,
       [newCatName]: []
-    });
+    };
+
+    setCatalogCategories(updatedCategories);
+    setCatalogModels(updatedModels);
+    reseedStock(updatedCategories, updatedModels);
 
     setNewCatName('');
     setNewCatCoste('');
@@ -759,6 +815,7 @@ export default function App() {
 
     setCatalogCategories(nextCats);
     setCatalogModels(nextMods);
+    reseedStock(nextCats, nextMods);
   };
 
   // Modify Category Pricing and Sizes
@@ -782,10 +839,13 @@ export default function App() {
       return;
     }
 
-    setCatalogCategories({
+    const updatedCategories = {
       ...catalogCategories,
       [editingCategory]: { coste: cost, pvp: pvp, tallas: sizes }
-    });
+    };
+
+    setCatalogCategories(updatedCategories);
+    reseedStock(updatedCategories, catalogModels);
     setEditingCategory(null);
     alert("Cambios de categoría guardados.");
   };
@@ -803,10 +863,13 @@ export default function App() {
     // Update models catalog
     const currentModels = catalogModels[category] || [];
     const nextModels = currentModels.map(m => m === oldName ? newName.trim() : m);
-    setCatalogModels({
+    
+    const updatedModels = {
       ...catalogModels,
       [category]: nextModels
-    });
+    };
+
+    setCatalogModels(updatedModels);
 
     // Update stock records corresponding to this model name
     const nextStock = stock.map(s => {
@@ -1024,8 +1087,14 @@ export default function App() {
     alert(`Nómina de ${payrollWorker} guardada: ${total}€`);
   };
 
-  // Direct cell editing of stock actual numbers
+  // Direct cell editing of stock actual numbers - HEALED TO PERMIT DELETION/BACKSPACE TYPING
   const handleStockCellChange = (id, value) => {
+    if (value === '') {
+      // Allow the cashier to clear the input value so they can type another digit
+      const next = stock.map(s => (s.id === id ? { ...s, cantidad_actual: 0 } : s));
+      saveStock(next);
+      return;
+    }
     const qty = parseInt(value);
     if (isNaN(qty)) return;
 
@@ -1929,7 +1998,8 @@ export default function App() {
                           <td className={cls} style={{ width: '130px' }}>
                             <input 
                               type="number" 
-                              value={item.cantidad_actual} 
+                              value={item.cantidad_actual === 0 ? '' : item.cantidad_actual} 
+                              placeholder="0"
                               onChange={(e) => handleStockCellChange(item.id, e.target.value)}
                               className="stock-edit-input"
                               style={{ width: '65px', textAlign: 'center', border: '1px solid var(--sand-300)', borderRadius: '4px', padding: '2px' }}
@@ -2261,11 +2331,9 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 6: SETTINGS */}
+          {/* TAB 6: CONFIGURACION */}
           {activeTab === 'settings' && (
             <div className="fade-in">
-              
-              {/* Dynamic Workers & Telegram Setup cards */}
               <div className="grid grid-cols-2">
                 
                 {/* Workers Card */}
