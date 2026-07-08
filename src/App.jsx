@@ -1252,9 +1252,25 @@ export default function App() {
 
   // Trigger editing of individual daily sales values
   const handleStartEditingDailySales = (year) => {
-    const daysCount = historicalYears[year]?.dias || 27;
-    const currentDaily = Array.isArray(historicalDailySales[year]) ? historicalDailySales[year] : [];
+    const daysCount = year === '2026' ? (eventConfig.diasTotales || 52) : (historicalYears[year]?.dias || 27);
     
+    // Get current daily sales array
+    let currentDaily = Array.isArray(historicalDailySales[year]) ? historicalDailySales[year] : [];
+    if (year === '2026' && currentDaily.length === 0) {
+      const salesByDay = {};
+      ventas.forEach(v => {
+        const dateStr = v.created_at.split('T')[0];
+        salesByDay[dateStr] = (salesByDay[dateStr] || 0) + parseFloat(v.total || 0);
+      });
+      const start = new Date(eventConfig.fechaInicio);
+      currentDaily = Array(daysCount).fill(0).map((_, idx) => {
+        const d = new Date(start);
+        d.setDate(d.getDate() + idx);
+        const dateStr = d.toISOString().split('T')[0];
+        return salesByDay[dateStr] || 0;
+      });
+    }
+
     // Adjust array size dynamically to match days count metadata
     let adjusted = [...currentDaily];
     if (adjusted.length < daysCount) {
@@ -1288,19 +1304,22 @@ export default function App() {
     };
     setHistoricalDailySales(nextDaily);
 
-    // Prompt user to automatically synchronize metadata total
-    if (window.confirm(`La suma de los días editados es de ${sumTotal.toFixed(2)} ${currencySymbol}.\n¿Deseas actualizar la facturación total del año ${showDailySalesEditorYear} con este valor?`)) {
-      setHistoricalYears({
-        ...historicalYears,
-        [showDailySalesEditorYear]: {
-          ...historicalYears[showDailySalesEditorYear],
-          total: sumTotal
-        }
-      });
+    if (showDailySalesEditorYear === '2026') {
+      alert(`Valores diarios de 2026 actualizados. Nueva facturación acumulada 2026: ${sumTotal.toFixed(2)} ${currencySymbol}`);
+    } else {
+      // Prompt user to automatically synchronize metadata total
+      if (window.confirm(`La suma de los días editados es de ${sumTotal.toFixed(2)} ${currencySymbol}.\n¿Deseas actualizar la facturación total del año ${showDailySalesEditorYear} con este valor?`)) {
+        setHistoricalYears({
+          ...historicalYears,
+          [showDailySalesEditorYear]: {
+            ...historicalYears[showDailySalesEditorYear],
+            total: sumTotal
+          }
+        });
+      }
     }
 
     setShowDailySalesEditorYear(null);
-    alert("Valores diarios históricos actualizados.");
   };
 
   // Expenses management (CRUD)
@@ -1422,18 +1441,55 @@ export default function App() {
     }
   };
 
+  // Resolve 2026 daily sales values (falling back to ticket records if not manually overridden)
+  const dailySales2026 = useMemo(() => {
+    const list = [];
+    const salesByDay = {};
+    ventas.forEach(v => {
+      const dateStr = v.created_at.split('T')[0];
+      salesByDay[dateStr] = (salesByDay[dateStr] || 0) + parseFloat(v.total || 0);
+    });
+
+    const start = new Date(eventConfig.fechaInicio);
+    const end = new Date(eventConfig.fechaFin);
+    let current = new Date(start);
+    let index = 1;
+    const targetMaxDays = eventConfig.diasTotales || 52;
+
+    while (current <= end && index <= targetMaxDays) {
+      const dateStr = current.toISOString().split('T')[0];
+      const overrideVal = historicalDailySales['2026']?.[index - 1];
+      const salesValue = overrideVal !== undefined ? overrideVal : (salesByDay[dateStr] || 0);
+
+      list.push({
+        dayIndex: index,
+        date: dateStr,
+        sales: salesValue
+      });
+
+      current.setDate(current.getDate() + 1);
+      index++;
+    }
+    return list;
+  }, [ventas, eventConfig, historicalDailySales]);
+
   // --- STATS AND COMPREHENSIVE KPIs ---
   const stats = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
 
     // Today metrics
+    const todaySalesItem = dailySales2026.find(d => d.date === todayStr);
+    const totalHoy = todaySalesItem ? todaySalesItem.sales : 0;
+
     const todaySales = ventas.filter(v => v.created_at.split('T')[0] === todayStr);
-    const totalHoy = todaySales.reduce((sum, v) => sum + parseFloat(v.total || 0), 0);
     const cashHoy = todaySales.filter(v => v.metodo_pago === 'CASH').reduce((sum, v) => sum + parseFloat(v.total || 0), 0);
     const cardHoy = todaySales.filter(v => v.metodo_pago === 'TARJETA').reduce((sum, v) => sum + parseFloat(v.total || 0), 0);
 
     // Accumulated metrics
-    const totalAcumulado = ventas.reduce((sum, v) => sum + parseFloat(v.total || 0), 0);
+    const totalAcumulado = dailySales2026
+      .filter(d => d.dayIndex <= eventConfig.diasTranscurridos || d.sales > 0)
+      .reduce((sum, d) => sum + d.sales, 0);
+
     const totalCash = ventas.filter(v => v.metodo_pago === 'CASH').reduce((sum, v) => sum + parseFloat(v.total || 0), 0);
     const totalCard = ventas.filter(v => v.metodo_pago === 'TARJETA').reduce((sum, v) => sum + parseFloat(v.total || 0), 0);
 
@@ -1494,7 +1550,7 @@ export default function App() {
       worstSize,
       isCloseRegisteredToday
     };
-  }, [ventas, eventConfig, cierres]);
+  }, [ventas, eventConfig, cierres, dailySales2026]);
 
   // Dynamic calculations for Morning Balance Recommendations
   const morningBalance = useMemo(() => {
@@ -1651,48 +1707,31 @@ export default function App() {
   }, [ventas, catalogCategories]);
 
   // Pre-aggregate cumulative sales data for interactive SVG chart
+  // Pre-aggregate cumulative sales data for interactive SVG chart
   const salesChartData = useMemo(() => {
     const dataset = [];
     let cumulative = 0;
     const paceTarget = stats.mediaRequeridaPace || (eventConfig.objetivoVentas / eventConfig.diasTotales);
 
-    const salesByDay = {};
-    ventas.forEach(v => {
-      const dateStr = v.created_at.split('T')[0];
-      salesByDay[dateStr] = (salesByDay[dateStr] || 0) + parseFloat(v.total || 0);
-    });
-
-    const start = new Date(eventConfig.fechaInicio);
-    const end = new Date(eventConfig.fechaFin);
-    let current = new Date(start);
-    let index = 1;
-
-    const targetMaxDays = eventConfig.diasTotales || 52;
-    while (current <= end && index <= targetMaxDays) {
-      const dateStr = current.toISOString().split('T')[0];
-      const salesValue = salesByDay[dateStr] || 0;
-      cumulative += salesValue;
-
-      const isPastOrToday = current <= new Date() || salesValue > 0;
+    dailySales2026.forEach((item) => {
+      cumulative += item.sales;
+      const isPastOrToday = new Date(item.date) <= new Date() || item.sales > 0;
       
       const dynamicTrajectory = getCumulativeTrajectory(chartCompareYear);
-      const comparativeVal = dynamicTrajectory[index - 1] !== undefined ? dynamicTrajectory[index - 1] : null;
+      const comparativeVal = dynamicTrajectory[item.dayIndex - 1] !== undefined ? dynamicTrajectory[item.dayIndex - 1] : null;
 
       dataset.push({
-        dayIndex: index,
-        date: dateStr,
-        sales: salesValue,
-        cumulative: isPastOrToday && ventas.length > 0 ? cumulative : null,
-        paceTarget: paceTarget * index,
+        dayIndex: item.dayIndex,
+        date: item.date,
+        sales: item.sales,
+        cumulative: isPastOrToday && stats.totalAcumulado > 0 ? cumulative : null,
+        paceTarget: paceTarget * item.dayIndex,
         historicalCompare: comparativeVal
       });
-
-      current.setDate(current.getDate() + 1);
-      index++;
-    }
+    });
 
     return dataset;
-  }, [ventas, eventConfig, stats, chartCompareYear, historicalDailySales]);
+  }, [dailySales2026, eventConfig, stats, chartCompareYear, historicalDailySales]);
 
   // Dynamically auto-scale the Y-axis for the non-cumulative Daily Cash Chart
   const maxDailyY = useMemo(() => {
@@ -3085,6 +3124,25 @@ export default function App() {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {/* Current Year row */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', backgroundColor: 'var(--sand-100)', borderRadius: 'var(--radius-md)', borderLeft: '3px solid var(--teal-accent)' }}>
+                    <div>
+                      <strong>Temporada 2026 (Actual)</strong>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--tuna-600)', marginLeft: '10px' }}>
+                        Facturación: {stats.totalAcumulado.toFixed(2)}€ | Días: {eventConfig.diasTranscurridos}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button 
+                        onClick={() => handleStartEditingDailySales('2026')} 
+                        className="btn btn-secondary" 
+                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem' }}
+                      >
+                        ✏️ Editar Caja Diaria (2026)
+                      </button>
+                    </div>
+                  </div>
+
                   {Object.keys(historicalYears).map(yr => (
                     <div key={yr} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', backgroundColor: 'var(--sand-100)', borderRadius: 'var(--radius-md)' }}>
                       <div>
@@ -3374,6 +3432,24 @@ export default function App() {
                 </strong>
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
+                {showDailySalesEditorYear === '2026' && (
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm("¿Seguro que deseas descartar los cambios manuales y restablecer a las ventas calculadas del TPV?")) {
+                        const nextDaily = { ...historicalDailySales };
+                        delete nextDaily['2026'];
+                        setHistoricalDailySales(nextDaily);
+                        setShowDailySalesEditorYear(null);
+                        alert("Restablecido a ventas reales del TPV.");
+                      }
+                    }}
+                    className="btn btn-secondary"
+                    style={{ color: 'var(--coral-accent)', borderColor: 'var(--coral-accent)' }}
+                  >
+                    Restablecer TPV
+                  </button>
+                )}
                 <button onClick={() => setShowDailySalesEditorYear(null)} className="btn btn-secondary">Cancelar</button>
                 <button onClick={handleSaveDailySalesEdits} className="btn btn-accent" style={{ color: 'var(--tuna-primary)' }}>Guardar Cambios</button>
               </div>
