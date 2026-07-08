@@ -155,6 +155,7 @@ export default function App() {
   // Compare year selection for trajectory chart
   const [chartCompareYear, setChartCompareYear] = useState('2025');
   const [overlayAllYears, setOverlayAllYears] = useState(false);
+  const [chartMetric, setChartMetric] = useState('cumulative'); // 'cumulative' or 'daily'
 
   // POS Discount & promo modifiers
   const [cartDiscount, setCartDiscount] = useState(0); 
@@ -1592,6 +1593,23 @@ export default function App() {
     return dataset;
   }, [ventas, eventConfig, stats, chartCompareYear, historicalYears]);
 
+  // Dynamically auto-scale the Y-axis for the non-cumulative Daily Cash Chart
+  const maxDailyY = useMemo(() => {
+    let maxVal = 1000;
+    // Check 2026 daily sales
+    salesChartData.forEach(d => {
+      if (d.sales > maxVal) maxVal = d.sales;
+    });
+    // Check historical years daily sales
+    Object.keys(SEED_HISTORICAL_TRAJECTORIES).forEach(yr => {
+      SEED_HISTORICAL_TRAJECTORIES[yr].forEach((val, idx) => {
+        const daily = idx === 0 ? val : val - SEED_HISTORICAL_TRAJECTORIES[yr][idx - 1];
+        if (daily > maxVal) maxVal = daily;
+      });
+    });
+    return Math.ceil(maxVal / 100) * 100; // Round to nearest 100
+  }, [salesChartData]);
+
   // Filters stock list based on Search query
   const filteredStock = useMemo(() => {
     const q = inventorySearch.toLowerCase().trim();
@@ -2053,7 +2071,7 @@ export default function App() {
                               </td>
                               <td>{sale.worker_name}</td>
                               <td>
-                                <button onClick={() => handleAnnulSale(sale)} className="btn btn-danger" style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem' }}>
+                                <button onClick={() => handleAnnulSale(sale)} className="btn btn-danger" style={{ padding: '0.25rem 0.5rem', fontSize: '0.7.rem' }}>
                                   Anular
                                 </button>
                               </td>
@@ -2095,7 +2113,7 @@ export default function App() {
                     </div>
                   ))}
                   {cart.length === 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyIntent: 'center', height: '100%', color: 'var(--tuna-600)', gap: '10px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--tuna-600)', gap: '10px' }}>
                       <ShoppingBag size={38} />
                       <span>Ticket sin artículos</span>
                     </div>
@@ -2298,14 +2316,37 @@ export default function App() {
               <div className="card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                   <div>
-                    <h3 style={{ margin: 0 }}>Trayectoria de Ventas Acumuladas: 2026 vs Comparativa YOY</h3>
+                    <h3 style={{ margin: 0 }}>
+                      {chartMetric === 'cumulative' ? 'Trayectoria de Ventas Acumuladas' : 'Evolución de Caja / Venta Diaria'}
+                    </h3>
                     <p style={{ fontSize: '0.85rem', color: 'var(--tuna-600)', margin: 0 }}>
-                      Compara el progreso diario del 2026 con el año histórico real que elijas del desplegable.
+                      {chartMetric === 'cumulative' 
+                        ? 'Compara el progreso acumulado día a día de las temporadas.' 
+                        : 'Compara la facturación neta ingresada individualmente en cada día de mercado.'
+                      }
                     </p>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    
-                    {/* OVERLAY CHECKBOX */}
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+                    {/* METRIC TYPE SELECTOR */}
+                    <div style={{ display: 'flex', border: '1px solid var(--sand-300)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                      <button 
+                        onClick={() => setChartMetric('cumulative')} 
+                        className="btn" 
+                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', borderRadius: 0, margin: 0, border: 'none', backgroundColor: chartMetric === 'cumulative' ? 'var(--tuna-primary)' : 'transparent', color: chartMetric === 'cumulative' ? '#fff' : 'var(--tuna-700)' }}
+                      >
+                        Acumulado
+                      </button>
+                      <button 
+                        onClick={() => setChartMetric('daily')} 
+                        className="btn" 
+                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', borderRadius: 0, margin: 0, border: 'none', backgroundColor: chartMetric === 'daily' ? 'var(--tuna-primary)' : 'transparent', color: chartMetric === 'daily' ? '#fff' : 'var(--tuna-700)' }}
+                      >
+                        Caja Diaria
+                      </button>
+                    </div>
+
+                    {/* OVERLAY CHECKBOX (CONJUNTO vs SEPARADO) */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <input 
                         type="checkbox" 
@@ -2339,71 +2380,148 @@ export default function App() {
                     <line x1="40" y1="210" x2="580" y2="210" stroke="#cbd5e1" />
                     <line x1="40" y1="20" x2="40" y2="210" stroke="#cbd5e1" />
 
-                    <text x="10" y="24" fill="var(--tuna-700)" fontSize="8">31k€</text>
-                    <text x="10" y="124" fill="var(--tuna-700)" fontSize="8">15k€</text>
-                    <text x="10" y="214" fill="var(--tuna-700)" fontSize="8">0€</text>
-
-                    {/* OVERLAID TRAJECTORY PATHS (2023, 2024, 2025) */}
-                    {overlayAllYears ? (
+                    {/* Y-axis Labels */}
+                    {chartMetric === 'cumulative' ? (
                       <>
-                        {/* 2023 Line (Amber) */}
-                        {(() => {
-                          const pts = SEED_HISTORICAL_TRAJECTORIES[2023].map((val, idx) => {
-                            const x = 40 + ((idx + 1) / (eventConfig.diasTotales || 1)) * 540;
-                            const y = 210 - (val / 31063.2) * 190;
-                            return `${x},${y}`;
-                          }).join(' ');
-                          return <polyline fill="none" stroke="#fbbf24" strokeWidth="2" strokeDasharray="3" points={pts} title="2023" />;
-                        })()}
-                        {/* 2024 Line (Blue) */}
-                        {(() => {
-                          const pts = SEED_HISTORICAL_TRAJECTORIES[2024].map((val, idx) => {
-                            const x = 40 + ((idx + 1) / (eventConfig.diasTotales || 1)) * 540;
-                            const y = 210 - (val / 31063.2) * 190;
-                            return `${x},${y}`;
-                          }).join(' ');
-                          return <polyline fill="none" stroke="#3b82f6" strokeWidth="2" strokeDasharray="3" points={pts} title="2024" />;
-                        })()}
-                        {/* 2025 Line (Red) */}
-                        {(() => {
-                          const pts = SEED_HISTORICAL_TRAJECTORIES[2025].map((val, idx) => {
-                            const x = 40 + ((idx + 1) / (eventConfig.diasTotales || 1)) * 540;
-                            const y = 210 - (val / 31063.2) * 190;
-                            return `${x},${y}`;
-                          }).join(' ');
-                          return <polyline fill="none" stroke="#ef4444" strokeWidth="2" strokeDasharray="3" points={pts} title="2025" />;
-                        })()}
+                        <text x="10" y="24" fill="var(--tuna-700)" fontSize="8">31k€</text>
+                        <text x="10" y="124" fill="var(--tuna-700)" fontSize="8">15k€</text>
+                        <text x="10" y="214" fill="var(--tuna-700)" fontSize="8">0€</text>
                       </>
                     ) : (
-                      /* SINGLE COMPARED LINE */
+                      <>
+                        <text x="10" y="24" fill="var(--tuna-700)" fontSize="8">{maxDailyY}€</text>
+                        <text x="10" y="124" fill="var(--tuna-700)" fontSize="8">{(maxDailyY / 2).toFixed(0)}€</text>
+                        <text x="10" y="214" fill="var(--tuna-700)" fontSize="8">0€</text>
+                      </>
+                    )}
+
+                    {/* CHART LINES RENDERER */}
+                    {chartMetric === 'cumulative' ? (
+                      /* --- CUMULATIVE TRAJECTORY LINES --- */
+                      overlayAllYears ? (
+                        <>
+                          {/* 2023 Line (Amber) */}
+                          {(() => {
+                            const pts = SEED_HISTORICAL_TRAJECTORIES[2023].map((val, idx) => {
+                              const x = 40 + ((idx + 1) / 52) * 540;
+                              const y = 210 - (val / 31063.2) * 190;
+                              return `${x},${y}`;
+                            }).join(' ');
+                            return <polyline fill="none" stroke="#fbbf24" strokeWidth="2" strokeDasharray="3" points={pts} />;
+                          })()}
+                          {/* 2024 Line (Blue) */}
+                          {(() => {
+                            const pts = SEED_HISTORICAL_TRAJECTORIES[2024].map((val, idx) => {
+                              const x = 40 + ((idx + 1) / 52) * 540;
+                              const y = 210 - (val / 31063.2) * 190;
+                              return `${x},${y}`;
+                            }).join(' ');
+                            return <polyline fill="none" stroke="#3b82f6" strokeWidth="2" strokeDasharray="3" points={pts} />;
+                          })()}
+                          {/* 2025 Line (Red) */}
+                          {(() => {
+                            const pts = SEED_HISTORICAL_TRAJECTORIES[2025].map((val, idx) => {
+                              const x = 40 + ((idx + 1) / 52) * 540;
+                              const y = 210 - (val / 31063.2) * 190;
+                              return `${x},${y}`;
+                            }).join(' ');
+                            return <polyline fill="none" stroke="#ef4444" strokeWidth="2" strokeDasharray="3" points={pts} />;
+                          })()}
+                        </>
+                      ) : (
+                        /* Single comparative YOY line */
+                        (() => {
+                          const pts = salesChartData
+                            .filter(d => d.historicalCompare !== null)
+                            .map(d => {
+                              const x = 40 + (d.dayIndex / 52) * 540;
+                              const y = 210 - (d.historicalCompare / 31063.2) * 190;
+                              return `${x},${y}`;
+                            })
+                            .join(' ');
+                          return <polyline fill="none" stroke="var(--amber-accent)" strokeWidth="2" strokeDasharray="4" points={pts} />;
+                        })()
+                      )
+                    ) : (
+                      /* --- DAILY INDIVIDUAL SALES LINES --- */
+                      overlayAllYears ? (
+                        <>
+                          {/* 2023 Daily (Amber) */}
+                          {(() => {
+                            const pts = SEED_HISTORICAL_TRAJECTORIES[2023].map((val, idx) => {
+                              const daily = idx === 0 ? val : val - SEED_HISTORICAL_TRAJECTORIES[2023][idx - 1];
+                              const x = 40 + ((idx + 1) / 52) * 540;
+                              const y = 210 - (Math.max(0, daily) / maxDailyY) * 190;
+                              return `${x},${y}`;
+                            }).join(' ');
+                            return <polyline fill="none" stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="2" points={pts} />;
+                          })()}
+                          {/* 2024 Daily (Blue) */}
+                          {(() => {
+                            const pts = SEED_HISTORICAL_TRAJECTORIES[2024].map((val, idx) => {
+                              const daily = idx === 0 ? val : val - SEED_HISTORICAL_TRAJECTORIES[2024][idx - 1];
+                              const x = 40 + ((idx + 1) / 52) * 540;
+                              const y = 210 - (Math.max(0, daily) / maxDailyY) * 190;
+                              return `${x},${y}`;
+                            }).join(' ');
+                            return <polyline fill="none" stroke="#3b82f6" strokeWidth="1.5" strokeDasharray="2" points={pts} />;
+                          })()}
+                          {/* 2025 Daily (Red) */}
+                          {(() => {
+                            const pts = SEED_HISTORICAL_TRAJECTORIES[2025].map((val, idx) => {
+                              const daily = idx === 0 ? val : val - SEED_HISTORICAL_TRAJECTORIES[2025][idx - 1];
+                              const x = 40 + ((idx + 1) / 52) * 540;
+                              const y = 210 - (Math.max(0, daily) / maxDailyY) * 190;
+                              return `${x},${y}`;
+                            }).join(' ');
+                            return <polyline fill="none" stroke="#ef4444" strokeWidth="1.5" strokeDasharray="2" points={pts} />;
+                          })()}
+                        </>
+                      ) : (
+                        /* Single Compared YOY Daily line */
+                        (() => {
+                          const traj = SEED_HISTORICAL_TRAJECTORIES[chartCompareYear];
+                          if (!traj) return null;
+                          const pts = traj.map((val, idx) => {
+                            const daily = idx === 0 ? val : val - traj[idx - 1];
+                            const x = 40 + ((idx + 1) / 52) * 540;
+                            const y = 210 - (Math.max(0, daily) / maxDailyY) * 190;
+                            return `${x},${y}`;
+                          }).join(' ');
+                          return <polyline fill="none" stroke="var(--amber-accent)" strokeWidth="1.5" strokeDasharray="3" points={pts} />;
+                        })()
+                      )
+                    )}
+
+                    {/* 2026 Line (Teal) - Renders for both cumulative or daily neta sales */}
+                    {chartMetric === 'cumulative' ? (
                       (() => {
                         const pts = salesChartData
-                          .filter(d => d.historicalCompare !== null)
+                          .filter(d => d.cumulative !== null)
                           .map(d => {
-                            const x = 40 + (d.dayIndex / (eventConfig.diasTotales || 1)) * 540;
-                            const y = 210 - (d.historicalCompare / 31063.2) * 190;
+                            const x = 40 + (d.dayIndex / 52) * 540;
+                            const y = 210 - (d.cumulative / 31063.2) * 190;
                             return `${x},${y}`;
                           })
                           .join(' ');
-                        return <polyline fill="none" stroke="var(--amber-accent)" strokeWidth="2" strokeDasharray="4" points={pts} />;
+                        return pts ? <polyline fill="none" stroke="var(--tuna-primary)" strokeWidth="3" points={pts} /> : null;
+                      })()
+                    ) : (
+                      (() => {
+                        const pts = salesChartData
+                          .filter(d => d.dayIndex <= eventConfig.diasTranscurridos || d.sales > 0)
+                          .map(d => {
+                            const x = 40 + (d.dayIndex / 52) * 540;
+                            const y = 210 - (d.sales / maxDailyY) * 190;
+                            return `${x},${y}`;
+                          })
+                          .join(' ');
+                        return pts ? <polyline fill="none" stroke="var(--tuna-primary)" strokeWidth="2.5" points={pts} /> : null;
                       })()
                     )}
-
-                    {/* 2026 Trajectory */}
-                    {(() => {
-                      const pts = salesChartData
-                        .filter(d => d.cumulative !== null)
-                        .map(d => {
-                          const x = 40 + (d.dayIndex / (eventConfig.diasTotales || 1)) * 540;
-                          const y = 210 - (d.cumulative / 31063.2) * 190;
-                          return `${x},${y}`;
-                        })
-                        .join(' ');
-                      if (!pts) return null;
-                      return <polyline fill="none" stroke="var(--tuna-primary)" strokeWidth="3" points={pts} />;
-                    })()}
                   </svg>
                 </div>
+                
                 {/* Graph Legend */}
                 <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', marginTop: '10px', fontSize: '0.8rem' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -2423,7 +2541,7 @@ export default function App() {
                     </>
                   ) : (
                     <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <span style={{ width: '12px', height: '3px', backgroundColor: 'var(--amber-accent)', display: 'inline-block' }}></span> Comparando con {chartCompareYear}
+                      <span style={{ width: '12px', height: '3px', backgroundColor: 'var(--amber-accent)', display: 'inline-block' }}></span> {chartCompareYear}
                     </span>
                   )}
                 </div>
