@@ -1250,6 +1250,28 @@ export default function App() {
     setHistoricalDailySales(nextDaily);
   };
 
+  // Restore default seed historical years and trajectory arrays
+  const handleRestoreDefaultHistoricalData = () => {
+    if (!isAdmin) {
+      alert("Se requiere perfil Administrador.");
+      return;
+    }
+    if (window.confirm("¿Deseas restaurar los datos históricos predeterminados (2023, 2024, 2025)? Se sobrescribirán las modificaciones manuales que hayas hecho en esos años.")) {
+      setHistoricalYears(SEED_HISTORICAL_YEARS);
+      
+      const seededDaily = {};
+      Object.keys(SEED_HISTORICAL_TRAJECTORIES).forEach(yr => {
+        const traj = SEED_HISTORICAL_TRAJECTORIES[yr];
+        seededDaily[yr] = traj.map((val, idx) => {
+          if (idx === 0) return val;
+          return Math.max(0, val - traj[idx - 1]);
+        });
+      });
+      setHistoricalDailySales(seededDaily);
+      alert("Datos históricos y cajas diarias restablecidos con éxito.");
+    }
+  };
+
   // Trigger editing of individual daily sales values
   const handleStartEditingDailySales = (year) => {
     const daysCount = year === '2026' ? (eventConfig.diasTotales || 52) : (historicalYears[year]?.dias || 27);
@@ -3105,9 +3127,18 @@ export default function App() {
 
               {/* Historical Years CRUD (Admin) with Dynamic Daily Sales Editing */}
               <div className="card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem' }}>
-                  <Calendar size={20} color="var(--tuna-primary)" />
-                  <h3>Ajuste de Años Históricos YOY</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Calendar size={20} color="var(--tuna-primary)" />
+                    <h3 style={{ margin: 0 }}>Ajuste de Años Históricos YOY</h3>
+                  </div>
+                  <button 
+                    onClick={handleRestoreDefaultHistoricalData} 
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem', color: 'var(--amber-accent)', borderColor: 'var(--amber-accent)' }}
+                  >
+                    Restaurar Datos Históricos Semilla
+                  </button>
                 </div>
                 <p style={{ fontSize: '0.85rem', color: 'var(--tuna-600)', marginBottom: '1.25rem' }}>
                   Configura los balances históricos y edita los valores de las cajas diarias de otras campañas.
