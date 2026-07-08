@@ -250,6 +250,7 @@ export default function App() {
   const [showClosureModal, setShowClosureModal] = useState(false);
   const [efectivoContado, setEfectivoContado] = useState('');
   const [tarjetaDatafono, setTarjetaDatafono] = useState('');
+  const [startingCashFloat, setStartingCashFloat] = useState(150);
   const [includeClosureDetails, setIncludeClosureDetails] = useState(true);
 
   // --- Daily Morning Balance Modal ---
@@ -916,15 +917,17 @@ export default function App() {
       v.created_at.split('T')[0] === todayStr && !v.cierre_id
     );
 
-    const expCash = todaySales.filter(v => v.metodo_pago === 'CASH').reduce((sum, v) => sum + parseFloat(v.total || 0), 0);
-    const expCard = todaySales.filter(v => v.metodo_pago === 'TARJETA').reduce((sum, v) => sum + parseFloat(v.total || 0), 0);
-    const expectedTotal = expCash + expCard;
+    const expCash = stats.cashHoy;
+    const expCard = stats.cardHoy;
+    const expectedTotal = stats.totalHoy;
 
-    const diff = (cash + card) - expectedTotal;
+    const diffCash = cash - (parseFloat(startingCashFloat) + expCash);
+    const diffCard = card - expCard;
+    const diffTotal = diffCash + diffCard;
 
     const last = cierres[0];
     const prevAcc = last ? parseFloat(last.efectivo_acumulado) : 0;
-    const newAcc = prevAcc + cash;
+    const newAcc = prevAcc + (cash - parseFloat(startingCashFloat));
 
     const closure = {
       id: supabase ? undefined : Date.now().toString(),
@@ -933,7 +936,7 @@ export default function App() {
       efectivo_contado: cash,
       tarjeta_datafono: card,
       total_ventas_sistema: expectedTotal,
-      diferencia: diff,
+      diferencia: diffTotal,
       efectivo_acumulado: newAcc,
       cerrado_por: loggedInUser ? loggedInUser.name : 'Desconocido'
     };
@@ -967,11 +970,19 @@ export default function App() {
                   `📆 *Fecha:* ${todayStr}\n` +
                   `👤 *Vendedor:* ${loggedInUser ? loggedInUser.name : 'Desconocido'}\n` +
                   `-------------------------------\n` +
-                  `💵 *Efectivo Contado:* ${cash.toFixed(2)} ${currencySymbol}\n` +
-                  `💳 *Tarjetas Datáfono:* ${card.toFixed(2)} ${currencySymbol}\n` +
-                  `📊 *Ventas Sistema:* ${expectedTotal.toFixed(2)} ${currencySymbol}\n` +
-                  `⚠️ *Desviación:* ${diff.toFixed(2)} ${currencySymbol}\n` +
-                  `💰 *Efectivo en Caja:* ${newAcc.toFixed(2)} ${currencySymbol}\n\n` +
+                  `💰 *Fondo Caja Inicial:* ${parseFloat(startingCashFloat).toFixed(2)} ${currencySymbol}\n` +
+                  `💵 *Ventas Cash Esperadas:* ${expCash.toFixed(2)} ${currencySymbol}\n` +
+                  `➡️ *Efectivo Esperado Total:* ${(parseFloat(startingCashFloat) + expCash).toFixed(2)} ${currencySymbol}\n` +
+                  `📥 *Efectivo Contado Cajón:* ${cash.toFixed(2)} ${currencySymbol}\n` +
+                  `⚠️ *Desviación Efectivo:* ${diffCash.toFixed(2)} ${currencySymbol}\n` +
+                  `-------------------------------\n` +
+                  `💳 *Tarjeta Esperada:* ${expCard.toFixed(2)} ${currencySymbol}\n` +
+                  `📟 *Tarjetas Contadas Datáfono:* ${card.toFixed(2)} ${currencySymbol}\n` +
+                  `⚠️ *Desviación Tarjetas:* ${diffCard.toFixed(2)} ${currencySymbol}\n` +
+                  `-------------------------------\n` +
+                  `📊 *Total Ventas Sistema:* ${expectedTotal.toFixed(2)} ${currencySymbol}\n` +
+                  `🚨 *Diferencia Total:* ${diffTotal.toFixed(2)} ${currencySymbol}\n` +
+                  `💰 *Efectivo Acumulado en Caja:* ${newAcc.toFixed(2)} ${currencySymbol}\n\n` +
                   `¡Cierre de jornada registrado con éxito!`;
       await sendTelegramNotification(msg);
     }
@@ -1944,22 +1955,39 @@ export default function App() {
           </div>
           <hr style={{ border: 'none', borderTop: '1px dashed #000', margin: '10px 0' }} />
           <div style={{ fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#666' }}>
+              <span>Fondo de Caja de Apertura:</span>
+              <span>{parseFloat(startingCashFloat || 0).toFixed(2)} {currencySymbol}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#666' }}>
+              <span>Ventas Cash Esperadas:</span>
+              <span>{stats.cashHoy.toFixed(2)} {currencySymbol}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
               <span>EFECTIVO CONTADO:</span>
-              <strong>{parseFloat(efectivoContado || '0').toFixed(2)} {currencySymbol}</strong>
+              <span>{parseFloat(efectivoContado || '0').toFixed(2)} {currencySymbol}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>TARJETA DATÁFONO:</span>
-              <strong>{parseFloat(tarjetaDatafono || '0').toFixed(2)} {currencySymbol}</strong>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#666' }}>
+              <span>Desviación Cash:</span>
+              <span>{(parseFloat(efectivoContado || '0') - (stats.cashHoy + parseFloat(startingCashFloat || 0))).toFixed(2)} {currencySymbol}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>VENTAS SISTEMA:</span>
-              <strong>{stats.totalHoy.toFixed(2)} {currencySymbol}</strong>
+            <hr style={{ border: 'none', borderTop: '1px dashed #000', margin: '5px 0' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#666' }}>
+              <span>Ventas Tarjeta Esperadas:</span>
+              <span>{stats.cardHoy.toFixed(2)} {currencySymbol}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+              <span>TARJETA REAL CONTADA:</span>
+              <span>{parseFloat(tarjetaDatafono || '0').toFixed(2)} {currencySymbol}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#666' }}>
+              <span>Desviación Tarjeta:</span>
+              <span>{(parseFloat(tarjetaDatafono || '0') - stats.cardHoy).toFixed(2)} {currencySymbol}</span>
             </div>
             <hr style={{ border: 'none', borderTop: '1px dashed #000', margin: '5px 0' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 'bold' }}>
-              <span>DESVIACIÓN:</span>
-              <span>{(parseFloat(efectivoContado || '0') + parseFloat(tarjetaDatafono || '0') - stats.totalHoy).toFixed(2)} {currencySymbol}</span>
+              <span>DESVIACIÓN TOTAL:</span>
+              <span>{((parseFloat(efectivoContado || '0') + parseFloat(tarjetaDatafono || '0')) - (stats.totalHoy + parseFloat(startingCashFloat || 0))).toFixed(2)} {currencySymbol}</span>
             </div>
           </div>
           
@@ -3514,48 +3542,136 @@ export default function App() {
 
             <form onSubmit={handleDailyClosing}>
               <div className="form-group">
-                <label className="form-label">Efectivo Físico Contado en Cajón ({currencySymbol})</label>
+                <label className="form-label" style={{ fontWeight: 'bold' }}>1. Fondo de Caja de Apertura ({currencySymbol})</label>
                 <input 
                   type="number" 
                   step="0.01" 
-                  value={efectivoContado} 
-                  onChange={(e) => setEfectivoContado(e.target.value)} 
+                  value={startingCashFloat} 
+                  onChange={(e) => setStartingCashFloat(e.target.value)} 
                   className="form-input" 
+                  style={{ fontWeight: 'bold', color: 'var(--teal-dark)' }}
                   required 
                 />
+                <span style={{ fontSize: '0.75rem', color: 'var(--tuna-600)' }}>
+                  Dinero inicial de cambio en el cajón por la mañana.
+                </span>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Tarjetas Totales Datáfono ({currencySymbol})</label>
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  value={tarjetaDatafono} 
-                  onChange={(e) => setTarjetaDatafono(e.target.value)} 
-                  className="form-input" 
-                  required 
-                />
+              <div className="grid grid-cols-2" style={{ gap: '1.25rem', marginTop: '1rem' }}>
+                {/* CASH SECTION */}
+                <div style={{ borderRight: '1px solid var(--sand-200)', paddingRight: '1.25rem' }}>
+                  <h4 style={{ color: 'var(--tuna-primary)', marginBottom: '0.75rem', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>💵 Efectivo (CASH)</h4>
+                  
+                  <div style={{ fontSize: '0.8rem', color: 'var(--tuna-600)', marginBottom: '0.75rem', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Ventas TPV:</span>
+                      <strong>{stats.cashHoy.toFixed(2)} {currencySymbol}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Fondo Inicial:</span>
+                      <span>+ {parseFloat(startingCashFloat || 0).toFixed(2)} {currencySymbol}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed var(--sand-300)', paddingTop: '3px', fontWeight: 'bold', color: 'var(--tuna-primary)' }}>
+                      <span>Total Esperado:</span>
+                      <span>{(stats.cashHoy + parseFloat(startingCashFloat || 0)).toFixed(2)} {currencySymbol}</span>
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Efectivo Real Contado</label>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      placeholder="Contar cajón" 
+                      value={efectivoContado} 
+                      onChange={(e) => setEfectivoContado(e.target.value)} 
+                      className="form-input" 
+                      required 
+                    />
+                  </div>
+
+                  {efectivoContado && (
+                    <div style={{
+                      fontSize: '0.8rem',
+                      fontWeight: 'bold',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      color: (parseFloat(efectivoContado) - (stats.cashHoy + parseFloat(startingCashFloat || 0))) >= 0 ? 'var(--teal-dark)' : 'var(--coral-accent)'
+                    }}>
+                      <span>Diferencia Cash:</span>
+                      <span>{(parseFloat(efectivoContado) - (stats.cashHoy + parseFloat(startingCashFloat || 0))).toFixed(2)} {currencySymbol}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* CARD SECTION */}
+                <div>
+                  <h4 style={{ color: 'var(--tuna-primary)', marginBottom: '0.75rem', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>💳 Tarjeta (CARD)</h4>
+                  
+                  <div style={{ fontSize: '0.8rem', color: 'var(--tuna-600)', marginBottom: '0.75rem', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Ventas TPV:</span>
+                      <strong>{stats.cardHoy.toFixed(2)} {currencySymbol}</strong>
+                    </div>
+                    <div style={{ height: '17px' }}></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed var(--sand-300)', paddingTop: '3px', fontWeight: 'bold', color: 'var(--tuna-primary)' }}>
+                      <span>Total Esperado:</span>
+                      <span>{stats.cardHoy.toFixed(2)} {currencySymbol}</span>
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Total Cierre Datáfono</label>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      placeholder="Contar datáfono" 
+                      value={tarjetaDatafono} 
+                      onChange={(e) => setTarjetaDatafono(e.target.value)} 
+                      className="form-input" 
+                      required 
+                    />
+                  </div>
+
+                  {tarjetaDatafono && (
+                    <div style={{
+                      fontSize: '0.8rem',
+                      fontWeight: 'bold',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      color: (parseFloat(tarjetaDatafono) - stats.cardHoy) === 0 ? 'var(--teal-dark)' : 'var(--coral-accent)'
+                    }}>
+                      <span>Diferencia Tarjeta:</span>
+                      <span>{(parseFloat(tarjetaDatafono) - stats.cardHoy).toFixed(2)} {currencySymbol}</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px', margin: '1rem 0' }}>
+              <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px', margin: '1.25rem 0 0.75rem 0', borderTop: '1px solid var(--sand-200)', paddingTop: '0.75rem' }}>
                 <input 
                   type="checkbox" 
                   id="includeDetails" 
                   checked={includeClosureDetails} 
                   onChange={(e) => setIncludeClosureDetails(e.target.checked)} 
                 />
-                <label htmlFor="includeDetails" className="form-label" style={{ marginBottom: 0 }}>Incluir desglose de ventas detallado</label>
+                <label htmlFor="includeDetails" className="form-label" style={{ marginBottom: 0, fontSize: '0.8rem' }}>Incluir desglose de ventas detallado en ticket</label>
               </div>
 
-              <div style={{ padding: '1rem', backgroundColor: 'var(--sand-100)', borderRadius: 'var(--radius-md)', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <span>Ventas Registradas Sistema hoy:</span>
+              <div style={{ padding: '0.75rem 1rem', backgroundColor: 'var(--sand-100)', borderRadius: 'var(--radius-md)', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <span>Facturación Total TPV Hoy:</span>
                   <strong>{stats.totalHoy.toFixed(2)} {currencySymbol}</strong>
                 </div>
                 {efectivoContado && tarjetaDatafono && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: (parseFloat(efectivoContado) + parseFloat(tarjetaDatafono) - stats.totalHoy) >= 0 ? 'var(--teal-dark)' : 'var(--coral-accent)' }}>
-                    <span>Desviación/Diferencia:</span>
-                    <strong>{(parseFloat(efectivoContado) + parseFloat(tarjetaDatafono) - stats.totalHoy).toFixed(2)} {currencySymbol}</strong>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontWeight: 'bold',
+                    color: ((parseFloat(efectivoContado) + parseFloat(tarjetaDatafono)) - (stats.totalHoy + parseFloat(startingCashFloat || 0))) >= 0 ? 'var(--teal-dark)' : 'var(--coral-accent)'
+                  }}>
+                    <span>Desviación Total de Caja:</span>
+                    <span>{((parseFloat(efectivoContado) + parseFloat(tarjetaDatafono)) - (stats.totalHoy + parseFloat(startingCashFloat || 0))).toFixed(2)} {currencySymbol}</span>
                   </div>
                 )}
               </div>
