@@ -137,6 +137,32 @@ export default function App() {
     return saved ? JSON.parse(saved) : SEED_HISTORICAL_YEARS;
   });
 
+  // Dynamic Trajectories (Daily Sales Values) loaded from localStorage or seeded from SEED
+  const [historicalDailySales, setHistoricalDailySales] = useState(() => {
+    const saved = localStorage.getItem('sm_historical_daily_sales');
+    if (saved) return JSON.parse(saved);
+
+    const seeded = {};
+    Object.keys(SEED_HISTORICAL_TRAJECTORIES).forEach(yr => {
+      const traj = SEED_HISTORICAL_TRAJECTORIES[yr];
+      seeded[yr] = traj.map((val, idx) => {
+        if (idx === 0) return val;
+        return Math.max(0, val - traj[idx - 1]);
+      });
+    });
+    return seeded;
+  });
+
+  // Dynamic Cumulative Trajectories calculated on-the-fly from daily sales values
+  const getCumulativeTrajectory = (year) => {
+    const daily = historicalDailySales[year] || [];
+    let sum = 0;
+    return daily.map(d => {
+      sum += d;
+      return sum;
+    });
+  };
+
   // Dynamic Telegram configs
   const [telegramConfig, setTelegramConfig] = useState(() => {
     const saved = localStorage.getItem('sm_telegram');
@@ -155,7 +181,7 @@ export default function App() {
   // Compare year selection for trajectory chart
   const [chartCompareYear, setChartCompareYear] = useState('2025');
   const [overlayAllYears, setOverlayAllYears] = useState(false);
-  const [chartMetric, setChartMetric] = useState('cumulative'); // 'cumulative' or 'daily'
+  const [chartMetric, setChartMetric] = useState('cumulative'); 
 
   // POS Discount & promo modifiers
   const [cartDiscount, setCartDiscount] = useState(0); 
@@ -194,6 +220,10 @@ export default function App() {
 
   // --- Quick POS Catalog Edit Modal ---
   const [showCatalogModal, setShowCatalogModal] = useState(false);
+
+  // --- Daily Sales Editor Modal ---
+  const [showDailySalesEditorYear, setShowDailySalesEditorYear] = useState(null); // year string e.g. '2023'
+  const [editingDailySalesValues, setEditingDailySalesValues] = useState([]); // array of daily sales
 
   // --- Category/Model Modification Local States ---
   const [editingCategory, setEditingCategory] = useState(null); 
@@ -557,6 +587,10 @@ export default function App() {
   }, [historicalYears]);
 
   useEffect(() => {
+    localStorage.setItem('sm_historical_daily_sales', JSON.stringify(historicalDailySales));
+  }, [historicalDailySales]);
+
+  useEffect(() => {
     localStorage.setItem('sm_telegram', JSON.stringify(telegramConfig));
   }, [telegramConfig]);
 
@@ -640,6 +674,7 @@ export default function App() {
         eventConfig,
         workers,
         historicalYears,
+        historicalDailySales,
         telegramConfig
       }, null, 2)
     );
@@ -666,6 +701,7 @@ export default function App() {
         if (importedObj.eventConfig) setEventConfig(importedObj.eventConfig);
         if (importedObj.workers) setWorkers(importedObj.workers);
         if (importedObj.historicalYears) setHistoricalYears(importedObj.historicalYears);
+        if (importedObj.historicalDailySales) setHistoricalDailySales(importedObj.historicalDailySales);
         if (importedObj.telegramConfig) setTelegramConfig(importedObj.telegramConfig);
 
         alert("Copia de seguridad importada con éxito.");
@@ -720,7 +756,7 @@ export default function App() {
     if (existingIndex > -1) {
       const updated = [...cart];
       updated[existingIndex].qty += selectedQty;
-      updated[existingIndex].total = updated[existingIndex].qty * price;
+      updated[existingIndex].total = updated[updatedIndex].qty * price;
       setCart(updated);
     } else {
       setCart([...cart, {
@@ -1171,6 +1207,14 @@ export default function App() {
       ...historicalYears,
       [yr]: { total: tot, dias: d, uds: u, ticketMedio: tk }
     });
+
+    // Seed empty daily sales for the new year
+    const zeroDaily = Array(d).fill(0);
+    setHistoricalDailySales({
+      ...historicalDailySales,
+      [yr]: zeroDaily
+    });
+
     setNewHistYear('');
     setNewHistTotal('');
     setNewHistDias('');
@@ -1187,6 +1231,63 @@ export default function App() {
     const next = { ...historicalYears };
     delete next[yr];
     setHistoricalYears(next);
+
+    const nextDaily = { ...historicalDailySales };
+    delete nextDaily[yr];
+    setHistoricalDailySales(nextDaily);
+  };
+
+  // Trigger editing of individual daily sales values
+  const handleStartEditingDailySales = (year) => {
+    const daysCount = historicalYears[year]?.dias || 27;
+    const currentDaily = historicalDailySales[year] || [];
+    
+    // Adjust array size dynamically to match days count metadata
+    let adjusted = [...currentDaily];
+    if (adjusted.length < daysCount) {
+      while (adjusted.length < daysCount) adjusted.push(0);
+    } else if (adjusted.length > daysCount) {
+      adjusted = adjusted.slice(0, daysCount);
+    }
+
+    setEditingDailySalesValues(adjusted);
+    setShowDailySalesEditorYear(year);
+  };
+
+  // Handle cell modification within the modal daily editor
+  const handleDailySalesValueChange = (index, value) => {
+    const next = [...editingDailySalesValues];
+    const val = parseFloat(value);
+    next[index] = isNaN(val) ? 0 : Math.max(0, val);
+    setEditingDailySalesValues(next);
+  };
+
+  // Save edits of historical daily sales values
+  const handleSaveDailySalesEdits = () => {
+    if (!showDailySalesEditorYear) return;
+    
+    const sumTotal = editingDailySalesValues.reduce((a, b) => a + b, 0);
+    
+    // Update Daily sales state
+    const nextDaily = {
+      ...historicalDailySales,
+      [showDailySalesEditorYear]: editingDailySalesValues
+    };
+    setHistoricalDailySales(nextDaily);
+
+    // Prompt user to automatically synchronize metadata total
+    if (window.confirm(`La suma de los días editados es de ${sumTotal.toFixed(2)} ${currencySymbol}.\n¿Deseas actualizar la facturación total del año ${showDailySalesEditorYear} con este valor?`)) {
+      setHistoricalYears({
+        ...historicalYears,
+        [showDailySalesEditorYear]: {
+          ...historicalYears[showDailySalesEditorYear],
+          total: sumTotal
+        }
+      });
+    }
+
+    setShowDailySalesEditorYear(null);
+    alert("Valores diarios históricos actualizados.");
   };
 
   // Expenses management (CRUD)
@@ -1561,21 +1662,8 @@ export default function App() {
 
       const isPastOrToday = current <= new Date() || salesValue > 0;
       
-      // Calculate scaled reference line dynamically using REAL verified trajectory arrays from PDF
-      const hasRealTrajectory = SEED_HISTORICAL_TRAJECTORIES.hasOwnProperty(chartCompareYear);
-      let comparativeVal = null;
-      if (hasRealTrajectory) {
-        comparativeVal = SEED_HISTORICAL_TRAJECTORIES[chartCompareYear][index - 1] || null;
-        if (comparativeVal === null && index > SEED_HISTORICAL_TRAJECTORIES[chartCompareYear].length) {
-          const arr = SEED_HISTORICAL_TRAJECTORIES[chartCompareYear];
-          comparativeVal = arr[arr.length - 1];
-        }
-      } else {
-        const compareYearTotal = historicalYears[chartCompareYear]?.total || 31063.20;
-        const baseRatio = compareYearTotal / 31063.20;
-        const rawHistoricalValue = SEED_HISTORICAL_TRAJECTORIES[2025][index - 1] || null;
-        comparativeVal = rawHistoricalValue !== null ? rawHistoricalValue * baseRatio : null;
-      }
+      const dynamicTrajectory = getCumulativeTrajectory(chartCompareYear);
+      const comparativeVal = dynamicTrajectory[index - 1] !== undefined ? dynamicTrajectory[index - 1] : null;
 
       dataset.push({
         dayIndex: index,
@@ -1591,24 +1679,7 @@ export default function App() {
     }
 
     return dataset;
-  }, [ventas, eventConfig, stats, chartCompareYear, historicalYears]);
-
-  // Dynamically auto-scale the Y-axis for the non-cumulative Daily Cash Chart
-  const maxDailyY = useMemo(() => {
-    let maxVal = 1000;
-    // Check 2026 daily sales
-    salesChartData.forEach(d => {
-      if (d.sales > maxVal) maxVal = d.sales;
-    });
-    // Check historical years daily sales
-    Object.keys(SEED_HISTORICAL_TRAJECTORIES).forEach(yr => {
-      SEED_HISTORICAL_TRAJECTORIES[yr].forEach((val, idx) => {
-        const daily = idx === 0 ? val : val - SEED_HISTORICAL_TRAJECTORIES[yr][idx - 1];
-        if (daily > maxVal) maxVal = daily;
-      });
-    });
-    return Math.ceil(maxVal / 100) * 100; // Round to nearest 100
-  }, [salesChartData]);
+  }, [ventas, eventConfig, stats, chartCompareYear, historicalDailySales]);
 
   // Filters stock list based on Search query
   const filteredStock = useMemo(() => {
@@ -2402,7 +2473,7 @@ export default function App() {
                         <>
                           {/* 2023 Line (Amber) */}
                           {(() => {
-                            const pts = SEED_HISTORICAL_TRAJECTORIES[2023].map((val, idx) => {
+                            const pts = getCumulativeTrajectory(2023).map((val, idx) => {
                               const x = 40 + ((idx + 1) / 52) * 540;
                               const y = 210 - (val / 31063.2) * 190;
                               return `${x},${y}`;
@@ -2411,7 +2482,7 @@ export default function App() {
                           })()}
                           {/* 2024 Line (Blue) */}
                           {(() => {
-                            const pts = SEED_HISTORICAL_TRAJECTORIES[2024].map((val, idx) => {
+                            const pts = getCumulativeTrajectory(2024).map((val, idx) => {
                               const x = 40 + ((idx + 1) / 52) * 540;
                               const y = 210 - (val / 31063.2) * 190;
                               return `${x},${y}`;
@@ -2420,7 +2491,7 @@ export default function App() {
                           })()}
                           {/* 2025 Line (Red) */}
                           {(() => {
-                            const pts = SEED_HISTORICAL_TRAJECTORIES[2025].map((val, idx) => {
+                            const pts = getCumulativeTrajectory(2025).map((val, idx) => {
                               const x = 40 + ((idx + 1) / 52) * 540;
                               const y = 210 - (val / 31063.2) * 190;
                               return `${x},${y}`;
@@ -2448,30 +2519,27 @@ export default function App() {
                         <>
                           {/* 2023 Daily (Amber) */}
                           {(() => {
-                            const pts = SEED_HISTORICAL_TRAJECTORIES[2023].map((val, idx) => {
-                              const daily = idx === 0 ? val : val - SEED_HISTORICAL_TRAJECTORIES[2023][idx - 1];
+                            const pts = (historicalDailySales[2023] || []).map((val, idx) => {
                               const x = 40 + ((idx + 1) / 52) * 540;
-                              const y = 210 - (Math.max(0, daily) / maxDailyY) * 190;
+                              const y = 210 - (val / maxDailyY) * 190;
                               return `${x},${y}`;
                             }).join(' ');
                             return <polyline fill="none" stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="2" points={pts} />;
                           })()}
                           {/* 2024 Daily (Blue) */}
                           {(() => {
-                            const pts = SEED_HISTORICAL_TRAJECTORIES[2024].map((val, idx) => {
-                              const daily = idx === 0 ? val : val - SEED_HISTORICAL_TRAJECTORIES[2024][idx - 1];
+                            const pts = (historicalDailySales[2024] || []).map((val, idx) => {
                               const x = 40 + ((idx + 1) / 52) * 540;
-                              const y = 210 - (Math.max(0, daily) / maxDailyY) * 190;
+                              const y = 210 - (val / maxDailyY) * 190;
                               return `${x},${y}`;
                             }).join(' ');
                             return <polyline fill="none" stroke="#3b82f6" strokeWidth="1.5" strokeDasharray="2" points={pts} />;
                           })()}
                           {/* 2025 Daily (Red) */}
                           {(() => {
-                            const pts = SEED_HISTORICAL_TRAJECTORIES[2025].map((val, idx) => {
-                              const daily = idx === 0 ? val : val - SEED_HISTORICAL_TRAJECTORIES[2025][idx - 1];
+                            const pts = (historicalDailySales[2025] || []).map((val, idx) => {
                               const x = 40 + ((idx + 1) / 52) * 540;
-                              const y = 210 - (Math.max(0, daily) / maxDailyY) * 190;
+                              const y = 210 - (val / maxDailyY) * 190;
                               return `${x},${y}`;
                             }).join(' ');
                             return <polyline fill="none" stroke="#ef4444" strokeWidth="1.5" strokeDasharray="2" points={pts} />;
@@ -2480,12 +2548,10 @@ export default function App() {
                       ) : (
                         /* Single Compared YOY Daily line */
                         (() => {
-                          const traj = SEED_HISTORICAL_TRAJECTORIES[chartCompareYear];
-                          if (!traj) return null;
+                          const traj = historicalDailySales[chartCompareYear] || [];
                           const pts = traj.map((val, idx) => {
-                            const daily = idx === 0 ? val : val - traj[idx - 1];
                             const x = 40 + ((idx + 1) / 52) * 540;
-                            const y = 210 - (Math.max(0, daily) / maxDailyY) * 190;
+                            const y = 210 - (val / maxDailyY) * 190;
                             return `${x},${y}`;
                           }).join(' ');
                           return <polyline fill="none" stroke="var(--amber-accent)" strokeWidth="1.5" strokeDasharray="3" points={pts} />;
@@ -2963,14 +3029,14 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Historical Years CRUD (Admin) */}
+              {/* Historical Years CRUD (Admin) with Dynamic Daily Sales Editing */}
               <div className="card">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem' }}>
                   <Calendar size={20} color="var(--tuna-primary)" />
                   <h3>Ajuste de Años Históricos YOY</h3>
                 </div>
                 <p style={{ fontSize: '0.85rem', color: 'var(--tuna-600)', marginBottom: '1.25rem' }}>
-                  Configura los balances históricos de otras campañas para realizar la comparación de trayectoria.
+                  Configura los balances históricos y edita los valores de las cajas diarias de otras campañas.
                 </p>
 
                 <div className="grid grid-cols-5" style={{ gap: '8px', marginBottom: '1.5rem' }}>
@@ -2981,6 +3047,34 @@ export default function App() {
                   <button onClick={handleAddHistYear} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
                     <Plus size={16} /> Añadir
                   </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {Object.keys(historicalYears).map(yr => (
+                    <div key={yr} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', backgroundColor: 'var(--sand-100)', borderRadius: 'var(--radius-md)' }}>
+                      <div>
+                        <strong>Temporada {yr}</strong>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--tuna-600)', marginLeft: '10px' }}>
+                          Facturación: {historicalYears[yr].total}€ | Días: {historicalYears[yr].dias} | Uds: {historicalYears[yr].uds}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button 
+                          onClick={() => handleStartEditingDailySales(yr)} 
+                          className="btn btn-secondary" 
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem' }}
+                        >
+                          ✏️ Editar Caja Diaria
+                        </button>
+                        <button 
+                          onClick={() => handleRemoveHistYear(yr)} 
+                          style={{ color: 'var(--coral-accent)', cursor: 'pointer', border: 'none', background: 'none' }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -3185,6 +3279,68 @@ export default function App() {
                     ))}
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HISTORICAL DAILY SALES EDITOR DIALOG MODAL (ADMIN ONLY) */}
+      {showDailySalesEditorYear && isAdmin && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(10,23,33,0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 110,
+          padding: '1rem'
+        }}>
+          <div className="card fade-in" style={{ width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', marginBottom: 0 }}>
+            <div style={{ display: 'flex', justifyIntent: 'space-between', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '2px solid var(--sand-100)', paddingBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Calendar size={20} color="var(--teal-accent)" />
+                <h3 style={{ margin: 0 }}>Editor de Caja Diaria - Temporada {showDailySalesEditorYear}</h3>
+              </div>
+              <button onClick={() => setShowDailySalesEditorYear(null)} style={{ color: 'var(--tuna-700)', cursor: 'pointer', border: 'none', background: 'none' }}>
+                <X size={22} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '0.85rem', color: 'var(--tuna-600)', marginBottom: '1.5rem' }}>
+              Modifica los valores netos ingresados cada día individual. La curva y el acumulado total YOY se recalcularán automáticamente.
+            </p>
+
+            <div className="grid grid-cols-4 sm:grid-cols-6" style={{ gap: '10px', maxHeight: '450px', overflowY: 'auto', padding: '0.5rem', border: '1px solid var(--sand-200)', borderRadius: 'var(--radius-md)' }}>
+              {editingDailySalesValues.map((val, idx) => (
+                <div key={idx} className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.7rem', color: 'var(--tuna-700)' }}>Día {idx + 1}</label>
+                  <input 
+                    type="number" 
+                    value={val === 0 ? '' : val} 
+                    placeholder="0"
+                    onChange={(e) => handleDailySalesValueChange(idx, e.target.value)} 
+                    className="form-input" 
+                    style={{ padding: '0.35rem', fontSize: '0.8rem', textAlign: 'center' }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', padding: '1rem', backgroundColor: 'var(--sand-100)', borderRadius: 'var(--radius-md)' }}>
+              <div>
+                <span style={{ fontSize: '0.8rem', color: 'var(--tuna-600)' }}>Suma Total Calculada:</span>
+                <strong style={{ fontSize: '1.25rem', color: 'var(--teal-dark)', marginLeft: '10px' }}>
+                  {editingDailySalesValues.reduce((a, b) => a + b, 0).toFixed(2)} {currencySymbol}
+                </strong>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={() => setShowDailySalesEditorYear(null)} className="btn btn-secondary">Cancelar</button>
+                <button onClick={handleSaveDailySalesEdits} className="btn btn-accent" style={{ color: 'var(--tuna-primary)' }}>Guardar Cambios</button>
               </div>
             </div>
           </div>
