@@ -140,7 +140,20 @@ export default function App() {
   // Dynamic Trajectories (Daily Sales Values) loaded from localStorage or seeded from SEED
   const [historicalDailySales, setHistoricalDailySales] = useState(() => {
     const saved = localStorage.getItem('sm_historical_daily_sales');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          let valid = true;
+          Object.keys(parsed).forEach(k => {
+            if (!Array.isArray(parsed[k])) valid = false;
+          });
+          if (valid) return parsed;
+        }
+      } catch (e) {
+        console.error("Failed to parse historical daily sales, self-healing...", e);
+      }
+    }
 
     const seeded = {};
     Object.keys(SEED_HISTORICAL_TRAJECTORIES).forEach(yr => {
@@ -155,7 +168,7 @@ export default function App() {
 
   // Dynamic Cumulative Trajectories calculated on-the-fly from daily sales values
   const getCumulativeTrajectory = (year) => {
-    const daily = historicalDailySales[year] || [];
+    const daily = Array.isArray(historicalDailySales[year]) ? historicalDailySales[year] : [];
     let sum = 0;
     return daily.map(d => {
       sum += d;
@@ -1240,7 +1253,7 @@ export default function App() {
   // Trigger editing of individual daily sales values
   const handleStartEditingDailySales = (year) => {
     const daysCount = historicalYears[year]?.dias || 27;
-    const currentDaily = historicalDailySales[year] || [];
+    const currentDaily = Array.isArray(historicalDailySales[year]) ? historicalDailySales[year] : [];
     
     // Adjust array size dynamically to match days count metadata
     let adjusted = [...currentDaily];
@@ -1680,6 +1693,25 @@ export default function App() {
 
     return dataset;
   }, [ventas, eventConfig, stats, chartCompareYear, historicalDailySales]);
+
+  // Dynamically auto-scale the Y-axis for the non-cumulative Daily Cash Chart
+  const maxDailyY = useMemo(() => {
+    let maxVal = 1000;
+    // Check 2026 daily sales
+    salesChartData.forEach(d => {
+      if (d.sales > maxVal) maxVal = d.sales;
+    });
+    // Check historical years daily sales
+    Object.keys(historicalDailySales).forEach(yr => {
+      const dailyVals = historicalDailySales[yr];
+      if (Array.isArray(dailyVals)) {
+        dailyVals.forEach(daily => {
+          if (daily > maxVal) maxVal = daily;
+        });
+      }
+    });
+    return Math.ceil(maxVal / 100) * 100; // Round to nearest 100
+  }, [salesChartData, historicalDailySales]);
 
   // Filters stock list based on Search query
   const filteredStock = useMemo(() => {
@@ -2519,7 +2551,8 @@ export default function App() {
                         <>
                           {/* 2023 Daily (Amber) */}
                           {(() => {
-                            const pts = (historicalDailySales[2023] || []).map((val, idx) => {
+                            const dailyVals = Array.isArray(historicalDailySales[2023]) ? historicalDailySales[2023] : [];
+                            const pts = dailyVals.map((val, idx) => {
                               const x = 40 + ((idx + 1) / 52) * 540;
                               const y = 210 - (val / maxDailyY) * 190;
                               return `${x},${y}`;
@@ -2528,7 +2561,8 @@ export default function App() {
                           })()}
                           {/* 2024 Daily (Blue) */}
                           {(() => {
-                            const pts = (historicalDailySales[2024] || []).map((val, idx) => {
+                            const dailyVals = Array.isArray(historicalDailySales[2024]) ? historicalDailySales[2024] : [];
+                            const pts = dailyVals.map((val, idx) => {
                               const x = 40 + ((idx + 1) / 52) * 540;
                               const y = 210 - (val / maxDailyY) * 190;
                               return `${x},${y}`;
@@ -2537,7 +2571,8 @@ export default function App() {
                           })()}
                           {/* 2025 Daily (Red) */}
                           {(() => {
-                            const pts = (historicalDailySales[2025] || []).map((val, idx) => {
+                            const dailyVals = Array.isArray(historicalDailySales[2025]) ? historicalDailySales[2025] : [];
+                            const pts = dailyVals.map((val, idx) => {
                               const x = 40 + ((idx + 1) / 52) * 540;
                               const y = 210 - (val / maxDailyY) * 190;
                               return `${x},${y}`;
@@ -2548,7 +2583,7 @@ export default function App() {
                       ) : (
                         /* Single Compared YOY Daily line */
                         (() => {
-                          const traj = historicalDailySales[chartCompareYear] || [];
+                          const traj = Array.isArray(historicalDailySales[chartCompareYear]) ? historicalDailySales[chartCompareYear] : [];
                           const pts = traj.map((val, idx) => {
                             const x = 40 + ((idx + 1) / 52) * 540;
                             const y = 210 - (val / maxDailyY) * 190;
