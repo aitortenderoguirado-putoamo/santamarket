@@ -323,7 +323,37 @@ export default function App() {
         const { data: gastosData, error: gastosErr } = await supabase.from('gastos').select('*').order('created_at', { ascending: false });
         const { data: cierresData, error: cierresErr } = await supabase.from('cierres').select('*').order('fecha', { ascending: false });
 
-        if (!stockErr && stockData) setStock(stockData);
+        if (!stockErr && stockData) {
+          if (stockData.length > 0) {
+            setStock(stockData);
+          } else {
+            // Seed Supabase database on first connection if stock is empty
+            const initialStock = [];
+            Object.keys(catalogCategories).forEach(cat => {
+              const models = catalogModels[cat] || [];
+              const sizes = catalogCategories[cat].tallas;
+              models.forEach(mod => {
+                sizes.forEach(sz => {
+                  initialStock.push({
+                    producto: cat,
+                    modelo: mod,
+                    talla: sz,
+                    cantidad_inicial: 50,
+                    cantidad_actual: 50
+                  });
+                });
+              });
+            });
+            const { error: seedErr } = await supabase.from('stock').insert(initialStock);
+            if (!seedErr) {
+              const { data: freshStock } = await supabase.from('stock').select('*');
+              if (freshStock) setStock(freshStock);
+            } else {
+              setStock(initialStock);
+            }
+          }
+        }
+        
         if (!ventasErr && ventasData) setVentas(ventasData);
         if (!gastosErr && gastosData) setGastos(gastosData);
         if (!cierresErr && cierresData) setCierres(cierresData);
@@ -373,11 +403,96 @@ export default function App() {
     loadData();
   }, [supabase]);
 
+  // --- SUPABASE REALTIME MULTI-DEVICE INSTANT SYNCHRONIZATION ---
+  useEffect(() => {
+    if (!supabase) return;
+
+    const stockSub = supabase
+      .channel('stock-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stock' }, () => {
+        loadData();
+      })
+      .subscribe();
+
+    const ventasSub = supabase
+      .channel('ventas-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ventas' }, () => {
+        loadData();
+      })
+      .subscribe();
+
+    const gastosSub = supabase
+      .channel('gastos-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'gastos' }, () => {
+        loadData();
+      })
+      .subscribe();
+
+    const cierresSub = supabase
+      .channel('cierres-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cierres' }, () => {
+        loadData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(stockSub);
+      supabase.removeChannel(ventasSub);
+      supabase.removeChannel(gastosSub);
+      supabase.removeChannel(cierresSub);
+    };
+  }, [supabase]);
+
+  // Sync Catalog combinations with Supabase Stock rows automatically
+  const syncStockWithDatabase = async (currentCats = catalogCategories, currentMods = catalogModels) => {
+    if (!supabase) return;
+    try {
+      const { data: dbStock } = await supabase.from('stock').select('*');
+      if (!dbStock) return;
+
+      const expectedCombinations = [];
+      Object.keys(currentCats).forEach(cat => {
+        const models = currentMods[cat] || [];
+        const sizes = currentCats[cat].tallas;
+        models.forEach(mod => {
+          sizes.forEach(sz => {
+            expectedCombinations.push({ producto: cat, modelo: mod, talla: sz });
+          });
+        });
+      });
+
+      // 1. Insert new catalog additions into database
+      const toInsert = expectedCombinations.filter(exp => 
+        !dbStock.some(db => db.producto === exp.producto && db.modelo === exp.modelo && db.talla === exp.talla)
+      ).map(exp => ({ ...exp, cantidad_inicial: 50, cantidad_actual: 50 }));
+
+      if (toInsert.length > 0) {
+        await supabase.from('stock').insert(toInsert);
+      }
+
+      // 2. Remove discontinued items from database
+      const toDelete = dbStock.filter(db => 
+        !expectedCombinations.some(exp => exp.producto === db.producto && exp.modelo === db.modelo && exp.talla === db.talla)
+      );
+
+      if (toDelete.length > 0) {
+        for (const row of toDelete) {
+          await supabase.from('stock').delete().eq('id', row.id);
+        }
+      }
+    } catch (err) {
+      console.error("Error running catalog sync on database:", err);
+    }
+  };
+
   // Watch changes to catalog and config
   useEffect(() => {
     localStorage.setItem('sm_catalog_categories', JSON.stringify(catalogCategories));
     localStorage.setItem('sm_catalog_models', JSON.stringify(catalogModels));
-  }, [catalogCategories, catalogModels]);
+    if (supabase) {
+      syncStockWithDatabase(catalogCategories, catalogModels);
+    }
+  }, [catalogCategories, catalogModels, supabase]);
 
   useEffect(() => {
     localStorage.setItem('sm_config', JSON.stringify(eventConfig));
