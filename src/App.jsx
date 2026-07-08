@@ -15,7 +15,18 @@ import {
   AlertTriangle,
   Award,
   Lock,
-  Check
+  Check,
+  Search,
+  Send,
+  Edit3,
+  UserPlus,
+  Calendar,
+  Sparkles,
+  Download,
+  Upload,
+  RefreshCw,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -24,7 +35,7 @@ const DEFAULT_SUPABASE_KEY = "your-anon-key";
 
 // --- SEED CATALOG CORRECTED TO ALIGN WITH DESGLOSE ---
 const SEED_CATEGORIES = {
-  Bañadores: { coste: 19.0, pvp: 55.0, tallas: ['S', 'M', 'L', 'XL', 'XXL'] },
+  Bañadores: { coste: 19.0, pvp: 55.0, tallas: ['4', '6', '8', '12', 'S', 'M', 'L', 'XL', 'XXL'] },
   Camisetas: { coste: 6.0, pvp: 30.0, tallas: ['S', 'M', 'L', 'XL'] },
   Camisas: { coste: 12.0, pvp: 55.0, tallas: ['S', 'M', 'L', 'XL'] },
   "Pantalón Corto": { coste: 11.5, pvp: 55.0, tallas: ['S', 'M', 'L', 'XL'] },
@@ -35,46 +46,30 @@ const SEED_CATEGORIES = {
 
 const SEED_MODELS = {
   Bañadores: [
-    'Sea Lion', 'Turtles', 'Tunas', 'Coral Rojo', 'Stars', 'Coral Azul', 
+    'Sea Lion', 'Turtles', 'Tunas', 'coral rojo', 'Stars', 'Coral azul', 
     'Hammer', 'Wraps', 'Microplastics', 'Amarillo', 'Straws', 'Goodvibes', 
-    'Surfers', 'Sixpack', 'Currents', 'Baywatch', 'Deep Blue', 'Anemona', 'Crab'
+    'Surfers', 'Sixpack', 'currents', 'Baywatch', 'Deep Blue', 'anemona', 'Crab'
   ],
   Camisetas: [
-    'Catch Waves', 'Out of Office', 'Fuck Plastic', 'Yatch Club', 'Power'
+    'Catch waves', 'Out of office', 'Fuck Plastic', 'Yatch club', 'Power'
   ],
-  Camisas: ['Azul', 'Blanca', 'Verde', 'Marrón'],
-  "Pantalón Corto": ['Blanco', 'Verde'],
-  "Pantalón Largo": ['Blanco', 'Kaki'],
+  Camisas: ['camisas Azul', 'camisas Blanca', 'camisas verde', 'camisas marron'],
+  "Pantalón Corto": ['Panta Corto blanco', 'Panta Corto verde'],
+  "Pantalón Largo": ['Panta Largo Blanco', 'Panta Largo kaki'],
   Toallas: ['Toalla'],
   Gafas: ['Gafas']
 };
 
-const DEFAULT_WORKERS = ['Aitor', 'Joan', 'Moha'];
-
-// Admin config: Aitor has full admin powers, Moha and Joan have salesperson access
-const ADMIN_WORKERS = ['Aitor'];
-
-// --- HISTORICAL DATASET (From 2023, 2024, 2025 records) ---
-const HISTORICAL_DATA = {
-  years: {
-    2023: { total: 6692, julio: 6692, agosto: 0, dias: 21, uds: 140, ticketMedio: 47.8 },
-    2024: { total: 17422, julio: 7386, agosto: 10036, dias: 42, uds: 360, ticketMedio: 48.4 },
-    2025: { total: 31063.20, julio: 10045, agosto: 21018, dias: 52, uds: 626, ticketMedio: 49.6 }
-  },
-  products2025: {
-    Bañadores: 402,
-    Camisetas: 97,
-    Camisas: 68,
-    "Pantalón Corto": 35,
-    "Pantalón Largo": 14,
-    Toallas: 8,
-    Gafas: 2
-  },
-  dailyTrajectory2025: [
-    120, 310, 480, 720, 940, 1420, 1850, 2100, 2350, 2710, 3050, 3420, 3810, 4110, 4390, 4790, 5210, 5600, 6050, 6310, 6692, 
-    7200, 7810, 8420, 9050, 9600, 10210, 10790, 11400, 12050, 12610, 13190, 13780, 14350, 14920, 15510, 16100, 16750, 17400, 18010, 18620, 19200, 19810, 20450, 21100, 21820, 22400, 23150, 24000, 25200, 26900, 31063.2 
-  ]
+const SEED_HISTORICAL_YEARS = {
+  2023: { total: 6692, dias: 21, uds: 140, ticketMedio: 47.8 },
+  2024: { total: 17422, dias: 42, uds: 360, ticketMedio: 48.4 },
+  2025: { total: 31063.20, dias: 52, uds: 626, ticketMedio: 49.6 }
 };
+
+const SEED_HISTORICAL_TRAJECTORY_2025 = [
+  120, 310, 480, 720, 940, 1420, 1850, 2100, 2350, 2710, 3050, 3420, 3810, 4110, 4390, 4790, 5210, 5600, 6050, 6310, 6692, 
+  7200, 7810, 8420, 9050, 9600, 10210, 10790, 11400, 12050, 12610, 13190, 13780, 14350, 14920, 15510, 16100, 16750, 17400, 18010, 18620, 19200, 19810, 20450, 21100, 21820, 22400, 23150, 24000, 25200, 26900, 31063.2 
+];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -111,9 +106,40 @@ export default function App() {
     return saved ? JSON.parse(saved) : SEED_MODELS;
   });
 
+  // Dynamic workers & historical years state
+  const [workers, setWorkers] = useState(() => {
+    const saved = localStorage.getItem('sm_workers');
+    return saved ? JSON.parse(saved) : ['Aitor', 'Joan', 'Moha'];
+  });
+  const [historicalYears, setHistoricalYears] = useState(() => {
+    const saved = localStorage.getItem('sm_historical_years');
+    return saved ? JSON.parse(saved) : SEED_HISTORICAL_YEARS;
+  });
+
+  // Dynamic Telegram configs
+  const [telegramConfig, setTelegramConfig] = useState(() => {
+    const saved = localStorage.getItem('sm_telegram');
+    return saved ? JSON.parse(saved) : {
+      botToken: '',
+      chatId: '',
+      enableOnClose: false,
+      enableMorningPlan: false
+    };
+  });
+
+  // --- GENERAL APP CONFIGURATIONS ---
+  const [currencySymbol, setCurrencySymbol] = useState(() => localStorage.getItem('sm_currency') || '€');
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('sm_dark_mode') === 'true');
+
+  // Compare year selection for trajectory chart
+  const [chartCompareYear, setChartCompareYear] = useState('2025');
+
+  // POS Discount & promo modifiers
+  const [cartDiscount, setCartDiscount] = useState(0); 
+
   // --- TPV POS Local States ---
   const [cart, setCart] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState(() => Object.keys(catalogCategories)[0] || 'Bañadores');
+  const [selectedCategory, setSelectedCategory] = useState('Bañadores');
   const [selectedModel, setSelectedModel] = useState('');
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedQty, setSelectedQty] = useState(1);
@@ -123,14 +149,31 @@ export default function App() {
   const [currentWorker, setCurrentWorker] = useState('Aitor');
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Check if logged-in worker is admin
-  const isAdmin = useMemo(() => ADMIN_WORKERS.includes(currentWorker), [currentWorker]);
+  // Check if logged-in worker is admin (Aitor remains the core administrator)
+  const isAdmin = useMemo(() => currentWorker === 'Aitor', [currentWorker]);
+
+  // --- Quick POS Catalog Edit Modal ---
+  const [showCatalogModal, setShowCatalogModal] = useState(false);
+
+  // --- Category/Model Modification Local States ---
+  const [editingCategory, setEditingCategory] = useState(null); // name of category being edited
+  const [editCatCoste, setEditCatCoste] = useState('');
+  const [editCatPvp, setEditCatPvp] = useState('');
+  const [editCatTallas, setEditCatTallas] = useState('');
+
+  const [editingModel, setEditingModel] = useState(null); // { category, oldName, newName }
 
   // --- Daily Closing Modal ---
   const [showClosureModal, setShowClosureModal] = useState(false);
   const [efectivoContado, setEfectivoContado] = useState('');
   const [tarjetaDatafono, setTarjetaDatafono] = useState('');
   const [includeClosureDetails, setIncludeClosureDetails] = useState(true);
+
+  // --- Daily Morning Balance Modal ---
+  const [showMorningModal, setShowMorningModal] = useState(false);
+
+  // --- Inventory Search bar ---
+  const [inventorySearch, setInventorySearch] = useState('');
 
   // --- Catalog CRUD Admin Inputs ---
   const [newCatName, setNewCatName] = useState('');
@@ -140,6 +183,16 @@ export default function App() {
 
   const [newModCategory, setNewModCategory] = useState('');
   const [newModName, setNewModName] = useState('');
+
+  // --- Worker CRUD Admin Inputs ---
+  const [newWorkerName, setNewWorkerName] = useState('');
+
+  // --- Historical Years CRUD Admin Inputs ---
+  const [newHistYear, setNewHistYear] = useState('');
+  const [newHistTotal, setNewHistTotal] = useState('');
+  const [newHistDias, setNewHistDias] = useState('');
+  const [newHistUds, setNewHistUds] = useState('');
+  const [newHistTicket, setNewHistTicket] = useState('');
 
   // --- Expense Logger state ---
   const [gastoConcepto, setGastoConcepto] = useState('');
@@ -166,6 +219,27 @@ export default function App() {
     }
     return null;
   }, [supabaseUrl, supabaseKey]);
+
+  // Dark Mode side effects
+  useEffect(() => {
+    if (darkMode) {
+      document.body.classList.add('dark-theme');
+    } else {
+      document.body.classList.remove('dark-theme');
+    }
+    localStorage.setItem('sm_dark_mode', darkMode);
+  }, [darkMode]);
+
+  // Migrations / Self Healing local cache
+  useEffect(() => {
+    // If Bañadores doesn't contain kid sizes (4, 6, 8, 12) or Camisetas is missing, auto-heal
+    if (!catalogCategories.hasOwnProperty('Camisetas') || (catalogCategories.Bañadores && !catalogCategories.Bañadores.tallas.includes('4'))) {
+      setCatalogCategories(SEED_CATEGORIES);
+      setCatalogModels(SEED_MODELS);
+      localStorage.setItem('sm_catalog_categories', JSON.stringify(SEED_CATEGORIES));
+      localStorage.setItem('sm_catalog_models', JSON.stringify(SEED_MODELS));
+    }
+  }, []);
 
   // Sync state with localstorage or fetch from Supabase
   const loadData = async () => {
@@ -245,6 +319,18 @@ export default function App() {
     localStorage.setItem('sm_config', JSON.stringify(eventConfig));
   }, [eventConfig]);
 
+  useEffect(() => {
+    localStorage.setItem('sm_workers', JSON.stringify(workers));
+  }, [workers]);
+
+  useEffect(() => {
+    localStorage.setItem('sm_historical_years', JSON.stringify(historicalYears));
+  }, [historicalYears]);
+
+  useEffect(() => {
+    localStorage.setItem('sm_telegram', JSON.stringify(telegramConfig));
+  }, [telegramConfig]);
+
   // Sync actions
   const saveVentas = (newVentas) => {
     setVentas(newVentas);
@@ -263,31 +349,105 @@ export default function App() {
     localStorage.setItem('sm_stock', JSON.stringify(newStock));
   };
 
-  // Reset database locally
-  const handleResetDatabase = () => {
-    if (!isAdmin) {
-      alert("Acceso denegado. Se requiere cuenta de Administrador.");
-      return;
-    }
-    if (window.confirm("¿Seguro que deseas reiniciar la base de datos local? Esto borrará las transacciones del 2026.")) {
-      localStorage.clear();
-      setCatalogCategories(SEED_CATEGORIES);
-      setCatalogModels(SEED_MODELS);
-      loadFromLocalStorage();
-      alert("Base de datos local reiniciada.");
+  // Telegram Send helper
+  const sendTelegramNotification = async (message) => {
+    if (!telegramConfig.botToken || !telegramConfig.chatId) return;
+    try {
+      await fetch(`https://api.telegram.org/bot${telegramConfig.botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: telegramConfig.chatId,
+          text: message,
+          parse_mode: 'Markdown'
+        })
+      });
+    } catch (e) {
+      console.error("Error sending message to Telegram:", e);
     }
   };
 
-  // Save connection config
-  const handleSaveConnection = () => {
+  // Restore Seed Catalog
+  const handleRestoreDefaultCatalog = () => {
     if (!isAdmin) {
-      alert("Acceso denegado. Se requiere cuenta de Administrador.");
+      alert("Se requiere rol Administrador (Aitor).");
       return;
     }
-    localStorage.setItem('sm_supabase_url', supabaseUrl);
-    localStorage.setItem('sm_supabase_key', supabaseKey);
-    alert("Credenciales guardadas. Intentando conectar...");
-    loadData();
+    if (window.confirm("¿Seguro que deseas restaurar el catálogo predeterminado de Sloppy Tunas? Se perderán las personalizaciones actuales de productos.")) {
+      setCatalogCategories(SEED_CATEGORIES);
+      setCatalogModels(SEED_MODELS);
+      // Re-seed stock cells
+      const initialStock = [];
+      Object.keys(SEED_CATEGORIES).forEach(cat => {
+        const models = SEED_MODELS[cat] || [];
+        const sizes = SEED_CATEGORIES[cat].tallas;
+        models.forEach(mod => {
+          sizes.forEach(sz => {
+            initialStock.push({
+              id: `${cat}-${mod}-${sz}`,
+              producto: cat,
+              modelo: mod,
+              talla: sz,
+              cantidad_inicial: 50,
+              cantidad_actual: 50
+            });
+          });
+        });
+      });
+      saveStock(initialStock);
+      alert("Catálogo predeterminado restaurado con éxito.");
+    }
+  };
+
+  // Backup Export
+  const handleExportBackup = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(
+      JSON.stringify({
+        ventas,
+        gastos,
+        cierres,
+        stock,
+        catalogCategories,
+        catalogModels,
+        eventConfig,
+        workers,
+        historicalYears,
+        telegramConfig
+      }, null, 2)
+    );
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `sloppy_tunas_backup_${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  // Backup Import
+  const handleImportBackup = (e) => {
+    const fileReader = new FileReader();
+    fileReader.onload = event => {
+      try {
+        const importedObj = JSON.parse(event.target.result);
+        if (importedObj.ventas) setVentas(importedObj.ventas);
+        if (importedObj.gastos) setGastos(importedObj.gastos);
+        if (importedObj.cierres) setCierres(importedObj.cierres);
+        if (importedObj.stock) setStock(importedObj.stock);
+        if (importedObj.catalogCategories) setCatalogCategories(importedObj.catalogCategories);
+        if (importedObj.catalogModels) setCatalogModels(importedObj.catalogModels);
+        if (importedObj.eventConfig) setEventConfig(importedObj.eventConfig);
+        if (importedObj.workers) setWorkers(importedObj.workers);
+        if (importedObj.historicalYears) setHistoricalYears(importedObj.historicalYears);
+        if (importedObj.telegramConfig) setTelegramConfig(importedObj.telegramConfig);
+
+        alert("Copia de seguridad importada con éxito.");
+      } catch (err) {
+        alert("Error al parsear el archivo. Asegúrate de usar un JSON válido de Sloppy Tunas.");
+      }
+    };
+    if (e.target.files[0]) {
+      fileReader.readAsText(e.target.files[0]);
+    }
   };
 
   // Reset selections when category updates
@@ -350,14 +510,26 @@ export default function App() {
     setActiveDiscount(0);
   };
 
+  const handleRemoveFromCart = (id) => {
+    setCart(cart.filter(item => item.id !== id));
+  };
+
+  const triggerPrintClosure = () => {
+    window.print();
+  };
+
   // POS Checkout
   const handleCheckout = async () => {
     if (cart.length === 0) return;
 
     const salesToInsert = [];
     const stockUpdates = [...stock];
+    const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
+    const finalTotal = Math.max(0, subtotal - cartDiscount);
+    const discountRatio = subtotal > 0 ? finalTotal / subtotal : 1;
 
     cart.forEach(item => {
+      const allocatedTotal = item.total * discountRatio;
       salesToInsert.push({
         id: supabase ? undefined : Date.now().toString() + Math.random().toString(),
         created_at: new Date().toISOString(),
@@ -367,7 +539,7 @@ export default function App() {
         cantidad: item.qty,
         metodo_pago: paymentMethod,
         precio: item.price,
-        total: item.total,
+        total: allocatedTotal,
         worker_name: currentWorker,
         cierre_id: null
       });
@@ -418,6 +590,7 @@ export default function App() {
     }
 
     setCart([]);
+    setCartDiscount(0);
     alert("Venta completada");
   };
 
@@ -466,8 +639,8 @@ export default function App() {
       v.created_at.split('T')[0] === todayStr && !v.cierre_id
     );
 
-    const expCash = todaySales.filter(v => v.metodo_pago === 'CASH').reduce((sum, v) => sum + parseFloat(v.total), 0);
-    const expCard = todaySales.filter(v => v.metodo_pago === 'TARJETA').reduce((sum, v) => sum + parseFloat(v.total), 0);
+    const expCash = todaySales.filter(v => v.metodo_pago === 'CASH').reduce((sum, v) => sum + parseFloat(v.total || 0), 0);
+    const expCard = todaySales.filter(v => v.metodo_pago === 'TARJETA').reduce((sum, v) => sum + parseFloat(v.total || 0), 0);
     const expectedTotal = expCash + expCard;
 
     const diff = (cash + card) - expectedTotal;
@@ -509,6 +682,21 @@ export default function App() {
     } else {
       saveVentas(ventas.map(v => v.created_at.split('T')[0] === todayStr ? { ...v, cierre_id: closure.id } : v));
       saveCierres([closure, ...cierres]);
+    }
+
+    // Telegram closing notifications
+    if (telegramConfig.enableOnClose && telegramConfig.botToken && telegramConfig.chatId) {
+      const msg = `📦 *CIERRE DE CAJA DIARIO - Sloppy Tunas*\n\n` +
+                  `📆 *Fecha:* ${todayStr}\n` +
+                  `👤 *Vendedor:* ${currentWorker}\n` +
+                  `-------------------------------\n` +
+                  `💵 *Efectivo Contado:* ${cash.toFixed(2)} ${currencySymbol}\n` +
+                  `💳 *Tarjetas Datáfono:* ${card.toFixed(2)} ${currencySymbol}\n` +
+                  `📊 *Ventas Sistema:* ${expectedTotal.toFixed(2)} ${currencySymbol}\n` +
+                  `⚠️ *Desviación:* ${diff.toFixed(2)} ${currencySymbol}\n` +
+                  `💰 *Efectivo en Caja:* ${newAcc.toFixed(2)} ${currencySymbol}\n\n` +
+                  `¡Cierre de jornada registrado con éxito!`;
+      await sendTelegramNotification(msg);
     }
 
     setShowClosureModal(false);
@@ -560,6 +748,70 @@ export default function App() {
 
     setCatalogCategories(nextCats);
     setCatalogModels(nextMods);
+  };
+
+  // Modify Category Pricing and Sizes
+  const handleStartEditingCategory = (catName) => {
+    const cat = catalogCategories[catName];
+    if (!cat) return;
+    setEditingCategory(catName);
+    setEditCatCoste(cat.coste.toString());
+    setEditCatPvp(cat.pvp.toString());
+    setEditCatTallas(cat.tallas.join(', '));
+  };
+
+  const handleSaveCategoryEdits = () => {
+    if (!editingCategory) return;
+    const cost = parseFloat(editCatCoste);
+    const pvp = parseFloat(editCatPvp);
+    const sizes = editCatTallas.split(',').map(s => s.trim().toUpperCase());
+
+    if (isNaN(cost) || isNaN(pvp)) {
+      alert("Introduce costes y PVP válidos.");
+      return;
+    }
+
+    setCatalogCategories({
+      ...catalogCategories,
+      [editingCategory]: { coste: cost, pvp: pvp, tallas: sizes }
+    });
+    setEditingCategory(null);
+    alert("Cambios de categoría guardados.");
+  };
+
+  // Rename or Modify Model
+  const handleStartEditingModel = (category, modelName) => {
+    setEditingModel({ category, oldName: modelName, newName: modelName });
+  };
+
+  const handleSaveModelEdits = () => {
+    if (!editingModel) return;
+    const { category, oldName, newName } = editingModel;
+    if (!newName.trim()) return;
+
+    // Update models catalog
+    const currentModels = catalogModels[category] || [];
+    const nextModels = currentModels.map(m => m === oldName ? newName.trim() : m);
+    setCatalogModels({
+      ...catalogModels,
+      [category]: nextModels
+    });
+
+    // Update stock records corresponding to this model name
+    const nextStock = stock.map(s => {
+      if (s.producto === category && s.modelo === oldName) {
+        return {
+          ...s,
+          modelo: newName.trim(),
+          id: `${category}-${newName.trim()}-${s.talla}`
+        };
+      }
+      return s;
+    });
+    saveStock(nextStock);
+
+    setEditingModel(null);
+    alert("Modelo modificado con éxito.");
   };
 
   // Add model to category (CRUD)
@@ -623,6 +875,73 @@ export default function App() {
 
     const stockUpdates = stock.filter(s => !(s.producto === cat && s.modelo === modName));
     saveStock(stockUpdates);
+  };
+
+  // Workers dynamic management
+  const handleAddWorker = () => {
+    if (!isAdmin) {
+      alert("Se requiere perfil Administrador.");
+      return;
+    }
+    if (!newWorkerName) return;
+    if (workers.includes(newWorkerName)) {
+      alert("Este trabajador ya existe.");
+      return;
+    }
+    setWorkers([...workers, newWorkerName]);
+    setNewWorkerName('');
+    alert("Trabajador registrado.");
+  };
+
+  const handleRemoveWorker = (name) => {
+    if (!isAdmin) {
+      alert("Se requiere perfil Administrador.");
+      return;
+    }
+    if (name === 'Aitor') {
+      alert("El administrador Aitor no puede eliminarse.");
+      return;
+    }
+    setWorkers(workers.filter(w => w !== name));
+  };
+
+  // Historical years management
+  const handleAddHistYear = () => {
+    if (!isAdmin) {
+      alert("Se requiere perfil Administrador.");
+      return;
+    }
+    const yr = parseInt(newHistYear);
+    const tot = parseFloat(newHistTotal);
+    const d = parseInt(newHistDias);
+    const u = parseInt(newHistUds);
+    const tk = parseFloat(newHistTicket);
+
+    if (isNaN(yr) || isNaN(tot) || isNaN(d) || isNaN(u) || isNaN(tk)) {
+      alert("Por favor rellena todos los campos con valores correctos.");
+      return;
+    }
+
+    setHistoricalYears({
+      ...historicalYears,
+      [yr]: { total: tot, dias: d, uds: u, ticketMedio: tk }
+    });
+    setNewHistYear('');
+    setNewHistTotal('');
+    setNewHistDias('');
+    setNewHistUds('');
+    setNewHistTicket('');
+    alert("Histórico del año añadido.");
+  };
+
+  const handleRemoveHistYear = (yr) => {
+    if (!isAdmin) {
+      alert("Se requiere perfil Administrador.");
+      return;
+    }
+    const next = { ...historicalYears };
+    delete next[yr];
+    setHistoricalYears(next);
   };
 
   // Expenses management (CRUD)
@@ -694,12 +1013,26 @@ export default function App() {
     alert(`Nómina de ${payrollWorker} guardada: ${total}€`);
   };
 
-  const handleStockAdjust = (id, delta) => {
-    // Only admins or designated stock actions can modify stock balances
-    if (!isAdmin) {
-      alert("Acceso denegado. Se requiere cuenta de Administrador (Aitor) para ajustar stock manualmente.");
-      return;
+  // Direct cell editing of stock actual numbers
+  const handleStockCellChange = (id, value) => {
+    const qty = parseInt(value);
+    if (isNaN(qty)) return;
+
+    const next = stock.map(s => {
+      if (s.id === id) {
+        return { ...s, cantidad_actual: Math.max(0, qty) };
+      }
+      return s;
+    });
+
+    if (supabase) {
+      supabase.from('stock').update({ cantidad_actual: Math.max(0, qty) }).eq('id', id).then(() => loadData());
+    } else {
+      saveStock(next);
     }
+  };
+
+  const handleStockAdjust = (id, delta) => {
     const next = stock.map(s => {
       if (s.id === id) {
         return { ...s, cantidad_actual: Math.max(0, s.cantidad_actual + delta) };
@@ -709,7 +1042,9 @@ export default function App() {
 
     if (supabase) {
       const item = next.find(s => s.id === id);
-      supabase.from('stock').update({ cantidad_actual: item.cantidad_actual }).eq('id', id).then(() => loadData());
+      if (item) {
+        supabase.from('stock').update({ cantidad_actual: item.cantidad_actual }).eq('id', id).then(() => loadData());
+      }
     } else {
       saveStock(next);
     }
@@ -721,20 +1056,20 @@ export default function App() {
 
     // Today metrics
     const todaySales = ventas.filter(v => v.created_at.split('T')[0] === todayStr);
-    const totalHoy = todaySales.reduce((sum, v) => sum + parseFloat(v.total), 0);
-    const cashHoy = todaySales.filter(v => v.metodo_pago === 'CASH').reduce((sum, v) => sum + parseFloat(v.total), 0);
-    const cardHoy = todaySales.filter(v => v.metodo_pago === 'TARJETA').reduce((sum, v) => sum + parseFloat(v.total), 0);
+    const totalHoy = todaySales.reduce((sum, v) => sum + parseFloat(v.total || 0), 0);
+    const cashHoy = todaySales.filter(v => v.metodo_pago === 'CASH').reduce((sum, v) => sum + parseFloat(v.total || 0), 0);
+    const cardHoy = todaySales.filter(v => v.metodo_pago === 'TARJETA').reduce((sum, v) => sum + parseFloat(v.total || 0), 0);
 
     // Accumulated metrics
-    const totalAcumulado = ventas.reduce((sum, v) => sum + parseFloat(v.total), 0);
-    const totalCash = ventas.filter(v => v.metodo_pago === 'CASH').reduce((sum, v) => sum + parseFloat(v.total), 0);
-    const totalCard = ventas.filter(v => v.metodo_pago === 'TARJETA').reduce((sum, v) => sum + parseFloat(v.total), 0);
+    const totalAcumulado = ventas.reduce((sum, v) => sum + parseFloat(v.total || 0), 0);
+    const totalCash = ventas.filter(v => v.metodo_pago === 'CASH').reduce((sum, v) => sum + parseFloat(v.total || 0), 0);
+    const totalCard = ventas.filter(v => v.metodo_pago === 'TARJETA').reduce((sum, v) => sum + parseFloat(v.total || 0), 0);
 
     // Dynamic Average Ticket calculation
     const transactions = {};
     ventas.forEach(v => {
       const key = `${v.worker_name}-${v.metodo_pago}-${v.created_at.slice(0, 16)}`;
-      transactions[key] = (transactions[key] || 0) + parseFloat(v.total);
+      transactions[key] = (transactions[key] || 0) + parseFloat(v.total || 0);
     });
     const txCount = Object.keys(transactions).length;
     const ticketMedio = txCount > 0 ? totalAcumulado / txCount : 0;
@@ -751,8 +1086,8 @@ export default function App() {
 
     ventas.forEach(v => {
       const key = `${v.producto} ${v.modelo}`;
-      modelSales[key] = (modelSales[key] || 0) + parseInt(v.cantidad);
-      sizeSales[v.talla] = (sizeSales[v.talla] || 0) + parseInt(v.cantidad);
+      modelSales[key] = (modelSales[key] || 0) + parseInt(v.cantidad || 0);
+      sizeSales[v.talla] = (sizeSales[v.talla] || 0) + parseInt(v.cantidad || 0);
     });
 
     const rankedModels = Object.entries(modelSales).sort((a, b) => b[1] - a[1]);
@@ -789,23 +1124,69 @@ export default function App() {
     };
   }, [ventas, eventConfig, cierres]);
 
-  // Comprehensive P&L calculation sheet
+  // Dynamic calculations for Morning Balance Recommendations
+  const morningBalance = useMemo(() => {
+    let sumTotal = 0;
+    let sumDays = 0;
+    Object.values(historicalYears).forEach(y => {
+      sumTotal += y.total || 0;
+      sumDays += y.dias || 0;
+    });
+    const histAvgDaily = sumDays > 0 ? sumTotal / sumDays : 600;
+
+    const recommendedTarget = Math.round(histAvgDaily * 1.15);
+
+    const swimwearStock = stock.filter(s => s.producto === 'Bañadores');
+    const modelStockTotals = {};
+    swimwearStock.forEach(s => {
+      modelStockTotals[s.modelo] = (modelStockTotals[s.modelo] || 0) + (s.cantidad_actual || 0);
+    });
+    const sortedModelStock = Object.entries(modelStockTotals).sort((a, b) => b[1] - a[1]);
+    const topStockedSwimwearModel = sortedModelStock[0] ? `${sortedModelStock[0][0]} (${sortedModelStock[0][1]} unidades disponibles)` : 'Ninguno';
+
+    return {
+      recommendedTarget,
+      histAvgDaily: Math.round(histAvgDaily),
+      topStockedSwimwearModel
+    };
+  }, [historicalYears, stock]);
+
+  // Send Morning Telegram Report Trigger
+  const handleSendMorningReport = async () => {
+    if (!telegramConfig.botToken || !telegramConfig.chatId) {
+      alert("Por favor, configura Telegram en Ajustes.");
+      return;
+    }
+    const todayStr = new Date().toISOString().split('T')[0];
+    const msg = `☀️ *BALANCE DE APERTURA DIARIA - Sloppy Tunas*\n\n` +
+                `📆 *Fecha:* ${todayStr}\n` +
+                `🎯 *Objetivo Diario Recomendado:* ${morningBalance.recommendedTarget} ${currencySymbol}\n` +
+                `📈 *Media de Años Anteriores:* ${morningBalance.histAvgDaily} ${currencySymbol}/día\n\n` +
+                `💡 *Sugerencia de Ventas (Push Product):*\n` +
+                `Hoy promocionemos el bañador *${morningBalance.topStockedSwimwearModel.split(' (')[0]}*.\n` +
+                `*(Es el modelo con mayor stock disponible: ${morningBalance.topStockedSwimwearModel.slice(morningBalance.topStockedSwimwearModel.indexOf('(') + 1, morningBalance.topStockedSwimwearModel.length - 1)})*.\n\n` +
+                `¡A por el día y a batir las marcas! 🚀`;
+    await sendTelegramNotification(msg);
+    alert("Balance matutino enviado a Telegram");
+  };
+
+  // Comprehensive P&L calculation sheet (Safe calculations wrapping fallbacks)
   const pnlReport = useMemo(() => {
-    const standCost = gastos.filter(g => g.categoria === 'Stand').reduce((sum, g) => sum + parseFloat(g.importe), 0);
-    const otherCosts = gastos.filter(g => g.categoria === 'Costes varios').reduce((sum, g) => sum + parseFloat(g.importe), 0);
-    const payrollCosts = gastos.filter(g => g.categoria === 'Nóminas').reduce((sum, g) => sum + parseFloat(g.importe), 0);
+    const standCost = (gastos || []).filter(g => g.categoria === 'Stand').reduce((sum, g) => sum + parseFloat(g.importe || 0), 0);
+    const otherCosts = (gastos || []).filter(g => g.categoria === 'Costes varios').reduce((sum, g) => sum + parseFloat(g.importe || 0), 0);
+    const payrollCosts = (gastos || []).filter(g => g.categoria === 'Nóminas').reduce((sum, g) => sum + parseFloat(g.importe || 0), 0);
     
     // Cost of Goods Sold from product seeds
-    const productCost = ventas.reduce((sum, v) => {
+    const productCost = (ventas || []).reduce((sum, v) => {
       const catInfo = catalogCategories[v.producto];
       const cost = catInfo ? catInfo.coste : 0;
-      return sum + (cost * parseInt(v.cantidad));
+      return sum + (cost * parseInt(v.cantidad || 0));
     }, 0);
 
-    const cardRevenue = ventas.filter(v => v.metodo_pago === 'TARJETA').reduce((sum, v) => sum + parseFloat(v.total), 0);
+    const cardRevenue = (ventas || []).filter(v => v.metodo_pago === 'TARJETA').reduce((sum, v) => sum + parseFloat(v.total || 0), 0);
     const vatCard = cardRevenue * 0.21;
 
-    const totalIncomes = stats.totalAcumulado;
+    const totalIncomes = stats.totalAcumulado || 0;
     const totalExpenses = standCost + otherCosts + payrollCosts + productCost + vatCard;
     const netProfit = totalIncomes - totalExpenses;
     
@@ -825,35 +1206,32 @@ export default function App() {
     };
   }, [ventas, gastos, stats, catalogCategories]);
 
-  // Challenge Progression Computations
+  // Challenge Progression Computations (Based on dynamic historicalYears)
   const challenges = useMemo(() => {
-    // 1. Beat 2025 revenue: 31,063.20 €
-    const targetRevenue = HISTORICAL_DATA.years[2025].total;
+    const prevYearData = historicalYears[2025] || { total: 31063.2, uds: 402 };
+    const targetRevenue = prevYearData.total;
     const progressRevenue = Math.min(100, (stats.totalAcumulado / targetRevenue) * 100);
 
-    // 2. Beat swimsuits total units of 2025: 402 units
-    const targetBañadores = HISTORICAL_DATA.products2025.Bañadores;
+    const targetBañadores = prevYearData.uds || 402;
     const currentBañadores = ventas
       .filter(v => v.producto === 'Bañadores')
-      .reduce((sum, v) => sum + parseInt(v.cantidad), 0);
+      .reduce((sum, v) => sum + parseInt(v.cantidad || 0), 0);
     const progressBañadores = Math.min(100, (currentBañadores / targetBañadores) * 100);
 
-    // 3. Beat ticket average from 2025: 49.60 €
-    const targetTicket = HISTORICAL_DATA.years[2025].ticketMedio;
+    const targetTicket = prevYearData.ticketMedio || 49.6;
     const progressTicket = targetTicket > 0 ? Math.min(100, (stats.ticketMedio / targetTicket) * 100) : 0;
 
-    // 4. Beat August average pace of 2025: 678 €/day
     const targetAvgAugust = 678;
     const augustDailyAvg = stats.mediaDiariaReal; 
     const progressAvgAugust = Math.min(100, (augustDailyAvg / targetAvgAugust) * 100);
 
     return [
-      { id: 1, name: "Batir ventas totales de 2025", target: `${targetRevenue.toFixed(2)} €`, current: `${stats.totalAcumulado.toFixed(2)} €`, pct: progressRevenue, active: stats.totalAcumulado >= targetRevenue },
+      { id: 1, name: "Batir ventas totales de 2025", target: `${targetRevenue.toFixed(2)} ${currencySymbol}`, current: `${stats.totalAcumulado.toFixed(2)} ${currencySymbol}`, pct: progressRevenue, active: stats.totalAcumulado >= targetRevenue },
       { id: 2, name: "Superar bañadores vendidos en 2025", target: `${targetBañadores} uds`, current: `${currentBañadores} uds`, pct: progressBañadores, active: currentBañadores >= targetBañadores },
-      { id: 3, name: "Superar el ticket medio del 2025", target: `${targetTicket.toFixed(2)} €`, current: `${stats.ticketMedio.toFixed(2)} €`, pct: progressTicket, active: stats.ticketMedio >= targetTicket },
-      { id: 4, name: "Batir media de facturación diaria", target: `${targetAvgAugust} €/día`, current: `${stats.mediaDiariaReal.toFixed(0)} €/día`, pct: progressAvgAugust, active: stats.mediaDiariaReal >= targetAvgAugust }
+      { id: 3, name: "Superar el ticket medio del 2025", target: `${targetTicket.toFixed(2)} ${currencySymbol}`, current: `${stats.ticketMedio.toFixed(2)} ${currencySymbol}`, pct: progressTicket, active: stats.ticketMedio >= targetTicket },
+      { id: 4, name: "Batir media de facturación diaria", target: `${targetAvgAugust} ${currencySymbol}/día`, current: `${stats.mediaDiariaReal.toFixed(0)} ${currencySymbol}/día`, pct: progressAvgAugust, active: stats.mediaDiariaReal >= targetAvgAugust }
     ];
-  }, [ventas, stats]);
+  }, [ventas, stats, historicalYears, currencySymbol]);
 
   // Product Rentability analytics
   const productPerformance = useMemo(() => {
@@ -864,7 +1242,7 @@ export default function App() {
         unitsSold: 0,
         costUnit: catalogCategories[cat].coste,
         pvpUnit: catalogCategories[cat].pvp,
-        multiplier: (catalogCategories[cat].pvp / catalogCategories[cat].coste).toFixed(1),
+        multiplier: (catalogCategories[cat].pvp / (catalogCategories[cat].coste || 1)).toFixed(1),
         revenue: 0,
         costGoodsSold: 0,
         profit: 0
@@ -873,8 +1251,8 @@ export default function App() {
 
     ventas.forEach(v => {
       if (statsByProduct[v.producto]) {
-        const qty = parseInt(v.cantidad);
-        const tot = parseFloat(v.total);
+        const qty = parseInt(v.cantidad || 0);
+        const tot = parseFloat(v.total || 0);
         statsByProduct[v.producto].unitsSold += qty;
         statsByProduct[v.producto].revenue += tot;
         statsByProduct[v.producto].costGoodsSold += qty * statsByProduct[v.producto].costUnit;
@@ -909,7 +1287,7 @@ export default function App() {
     const salesByDay = {};
     ventas.forEach(v => {
       const dateStr = v.created_at.split('T')[0];
-      salesByDay[dateStr] = (salesByDay[dateStr] || 0) + parseFloat(v.total);
+      salesByDay[dateStr] = (salesByDay[dateStr] || 0) + parseFloat(v.total || 0);
     });
 
     const start = new Date(eventConfig.fechaInicio);
@@ -917,13 +1295,19 @@ export default function App() {
     let current = new Date(start);
     let index = 1;
 
-    while (current <= end && index <= eventConfig.diasTotales) {
+    const targetMaxDays = eventConfig.diasTotales || 52;
+    while (current <= end && index <= targetMaxDays) {
       const dateStr = current.toISOString().split('T')[0];
       const salesValue = salesByDay[dateStr] || 0;
       cumulative += salesValue;
 
       const isPastOrToday = current <= new Date() || salesValue > 0;
-      const historicalVal2025 = HISTORICAL_DATA.dailyTrajectory2025[index - 1] || null;
+      
+      // Calculate scaled reference line dynamically for ANY selected comparison year
+      const compareYearTotal = historicalYears[chartCompareYear]?.total || 31063.20;
+      const baseRatio = compareYearTotal / 31063.20;
+      const rawHistoricalValue = SEED_HISTORICAL_TRAJECTORY_2025[index - 1] || null;
+      const scaledHistoricalValue = rawHistoricalValue !== null ? rawHistoricalValue * baseRatio : null;
 
       dataset.push({
         dayIndex: index,
@@ -931,7 +1315,7 @@ export default function App() {
         sales: salesValue,
         cumulative: isPastOrToday && ventas.length > 0 ? cumulative : null,
         paceTarget: paceTarget * index,
-        historical2025: historicalVal2025
+        historicalCompare: scaledHistoricalValue
       });
 
       current.setDate(current.getDate() + 1);
@@ -939,7 +1323,19 @@ export default function App() {
     }
 
     return dataset;
-  }, [ventas, eventConfig, stats]);
+  }, [ventas, eventConfig, stats, chartCompareYear, historicalYears]);
+
+  // Filters stock list based on Search query
+  const filteredStock = useMemo(() => {
+    const q = inventorySearch.toLowerCase().trim();
+    if (!q) return stock;
+    return stock.filter(item => 
+      item.producto.toLowerCase().includes(q) ||
+      item.modelo.toLowerCase().includes(q) ||
+      item.talla.toLowerCase().includes(q) ||
+      `${item.producto} ${item.modelo} ${item.talla}`.toLowerCase().includes(q)
+    );
+  }, [stock, inventorySearch]);
 
   return (
     <div className="app-container">
@@ -970,7 +1366,7 @@ export default function App() {
             <DollarSign className="nav-item-icon" /> Gastos & P&L
           </button>
           <button onClick={() => setActiveTab('settings')} className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}>
-            <Settings className="nav-item-icon" /> Configuración {!isAdmin && <Lock size={12} style={{ marginLeft: 'auto' }} />}
+            <Settings className="nav-item-icon" /> Configuración
           </button>
         </nav>
 
@@ -1013,13 +1409,23 @@ export default function App() {
             <span style={{ fontSize: '0.8rem', color: 'var(--tuna-600)' }}>Cajero activo: <strong>{currentWorker}</strong> ({isAdmin ? 'Administrador' : 'Vendedor'})</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            {/* Quick Dark Mode toggle in header */}
+            <button 
+              onClick={() => setDarkMode(!darkMode)} 
+              className="btn btn-secondary" 
+              style={{ padding: '0.45rem', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              title="Cambiar tema de color"
+            >
+              {darkMode ? <Sun size={15} color="var(--amber-accent)" /> : <Moon size={15} />}
+            </button>
+
             <select 
               value={currentWorker} 
               onChange={(e) => setCurrentWorker(e.target.value)} 
               className="form-input" 
               style={{ width: 'auto', padding: '0.4rem 1.8rem 0.4rem 0.8rem', fontSize: '0.8rem' }}
             >
-              {DEFAULT_WORKERS.map(w => <option key={w} value={w}>{w}</option>)}
+              {workers.map(w => <option key={w} value={w}>{w}</option>)}
             </select>
 
             <button 
@@ -1044,20 +1450,20 @@ export default function App() {
           <div style={{ fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>EFECTIVO CONTADO:</span>
-              <strong>{parseFloat(efectivoContado || '0').toFixed(2)} €</strong>
+              <strong>{parseFloat(efectivoContado || '0').toFixed(2)} {currencySymbol}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>TARJETA DATÁFONO:</span>
-              <strong>{parseFloat(tarjetaDatafono || '0').toFixed(2)} €</strong>
+              <strong>{parseFloat(tarjetaDatafono || '0').toFixed(2)} {currencySymbol}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>VENTAS SISTEMA:</span>
-              <strong>{stats.totalHoy.toFixed(2)} €</strong>
+              <strong>{stats.totalHoy.toFixed(2)} {currencySymbol}</strong>
             </div>
             <hr style={{ border: 'none', borderTop: '1px dashed #000', margin: '5px 0' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 'bold' }}>
               <span>DESVIACIÓN:</span>
-              <span>{(parseFloat(efectivoContado || '0') + parseFloat(tarjetaDatafono || '0') - stats.totalHoy).toFixed(2)} €</span>
+              <span>{(parseFloat(efectivoContado || '0') + parseFloat(tarjetaDatafono || '0') - stats.totalHoy).toFixed(2)} {currencySymbol}</span>
             </div>
           </div>
           
@@ -1071,7 +1477,7 @@ export default function App() {
                   .map((sale, idx) => (
                     <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
                       <span>{sale.producto} {sale.modelo} ({sale.talla}) x{sale.cantidad}</span>
-                      <span>{parseFloat(sale.total).toFixed(2)} €</span>
+                      <span>{parseFloat(sale.total).toFixed(2)} {currencySymbol}</span>
                     </div>
                   ))}
               </div>
@@ -1087,6 +1493,27 @@ export default function App() {
           {/* TAB 1: DASHBOARD */}
           {activeTab === 'dashboard' && (
             <div className="fade-in">
+              {/* MORNING PUSH TRIGGER PANEL */}
+              <div className="card" style={{ background: 'linear-gradient(135deg, #10677c, #073844)', color: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  <Sparkles size={24} color="var(--teal-accent)" />
+                  <div>
+                    <h4 style={{ color: '#ffffff', margin: 0, fontSize: '1.05rem' }}>Balance y Sugerencia de Apertura de Caja</h4>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--sand-200)' }}>Haz balance con temporadas anteriores y establece tus objetivos de hoy.</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={() => setShowMorningModal(true)} className="btn btn-accent" style={{ color: 'var(--tuna-950)' }}>
+                    Ver Plan de Apertura
+                  </button>
+                  {telegramConfig.botToken && (
+                    <button onClick={handleSendMorningReport} className="btn btn-secondary" style={{ border: '1px solid rgba(255,255,255,0.2)', color: '#ffffff' }}>
+                      <Send size={14} /> Enviar a Telegram
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {!stats.isCloseRegisteredToday && new Date().getHours() >= 19 && (
                 <div className="card" style={{ borderLeft: '4px solid var(--coral-accent)', display: 'flex', alignItems: 'center', gap: '15px', padding: '1.25rem', backgroundColor: '#fff8f7' }}>
                   <AlertTriangle color="var(--coral-accent)" />
@@ -1101,21 +1528,21 @@ export default function App() {
               <div className="grid grid-cols-4" style={{ marginBottom: '2.5rem' }}>
                 <div className="card stat-box">
                   <span className="stat-label">Caja Hoy (2026)</span>
-                  <span className="stat-value">{stats.totalHoy.toFixed(2)} €</span>
+                  <span className="stat-value">{stats.totalHoy.toFixed(2)} {currencySymbol}</span>
                   <div className="stat-change">
-                    <span className="badge badge-cash">{stats.cashHoy.toFixed(0)}€ Cash</span>
-                    <span className="badge badge-card">{stats.cardHoy.toFixed(0)}€ Card</span>
+                    <span className="badge badge-cash">{stats.cashHoy.toFixed(0)}{currencySymbol} Cash</span>
+                    <span className="badge badge-card">{stats.cardHoy.toFixed(0)}{currencySymbol} Card</span>
                   </div>
                 </div>
                 <div className="card stat-box">
                   <span className="stat-label">Ticket Medio 2026</span>
-                  <span className="stat-value">{stats.ticketMedio.toFixed(1)} €</span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--tuna-600)' }}>Historico 2025: {HISTORICAL_DATA.years[2025].ticketMedio}€</span>
+                  <span className="stat-value">{stats.ticketMedio.toFixed(1)} {currencySymbol}</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--tuna-600)' }}>Historico 2025: {(historicalYears[2025]?.ticketMedio || 49.6).toFixed(1)}{currencySymbol}</span>
                 </div>
                 <div className="card stat-box accent-teal">
                   <span className="stat-label">Media Diaria Real</span>
-                  <span className="stat-value" style={{ color: 'var(--teal-dark)' }}>{stats.mediaDiariaReal.toFixed(0)} €</span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--tuna-600)' }}>Pace 2026: {stats.mediaRequeridaPace.toFixed(0)}€/d</span>
+                  <span className="stat-value" style={{ color: 'var(--teal-dark)' }}>{stats.mediaDiariaReal.toFixed(0)} {currencySymbol}</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--tuna-600)' }}>Pace 2026: {stats.mediaRequeridaPace.toFixed(0)}{currencySymbol}/d</span>
                 </div>
                 <div className="card stat-box accent-coral">
                   <span className="stat-label">Talla + Vendida</span>
@@ -1125,7 +1552,7 @@ export default function App() {
               </div>
 
               {/* RETOS / DESAFIOS */}
-              <h3 style={{ marginBottom: '1.25rem' }}>Retos de Superación YOY (vs 2025)</h3>
+              <h3 style={{ marginBottom: '1.25rem' }}>Retos de Superación YOY</h3>
               <div className="grid grid-cols-4" style={{ marginBottom: '2.5rem' }}>
                 {challenges.map(ch => (
                   <div key={ch.id} className="card" style={{ padding: '1.25rem', border: ch.active ? '2px solid var(--teal-accent)' : '1px solid var(--sand-200)' }}>
@@ -1149,11 +1576,11 @@ export default function App() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span className="stat-label">Objetivo Temporada 2026</span>
                     <strong style={{ color: 'var(--tuna-primary)', fontSize: '1rem' }}>
-                      {stats.totalAcumulado.toFixed(2)} € / {eventConfig.objetivoVentas} € ({((stats.totalAcumulado / eventConfig.objetivoVentas) * 100).toFixed(1)}%)
+                      {stats.totalAcumulado.toFixed(2)} {currencySymbol} / {eventConfig.objetivoVentas} {currencySymbol} ({((stats.totalAcumulado / (eventConfig.objetivoVentas || 1)) * 100).toFixed(1)}%)
                     </strong>
                   </div>
                   <div style={{ height: '14px', width: '100%', backgroundColor: 'var(--sand-200)', borderRadius: '999px', overflow: 'hidden', marginTop: '0.75rem' }}>
-                    <div style={{ height: '100%', width: `${Math.min(100, (stats.totalAcumulado / eventConfig.objetivoVentas) * 100)}%`, backgroundColor: 'var(--teal-accent)' }}></div>
+                    <div style={{ height: '100%', width: `${Math.min(100, (stats.totalAcumulado / (eventConfig.objetivoVentas || 1)) * 100)}%`, backgroundColor: 'var(--teal-accent)' }}></div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--tuna-600)', marginTop: '0.5rem' }}>
                     <span>Día {eventConfig.diasTranscurridos} de {eventConfig.diasTotales} operados</span>
@@ -1180,7 +1607,16 @@ export default function App() {
               <div className="pos-catalog">
                 {/* Easy Input Panel */}
                 <div className="card" style={{ marginBottom: 0 }}>
-                  <h3 style={{ marginBottom: '1.25rem' }}>Registro Rápido de Venta</h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                    <h3 style={{ margin: 0 }}>Registro Rápido de Venta</h3>
+                    <button 
+                      onClick={() => setShowCatalogModal(true)} 
+                      className="btn btn-secondary" 
+                      style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <Edit3 size={14} /> Gestionar Catálogo
+                    </button>
+                  </div>
                   
                   <div className="form-group">
                     <label className="form-label">1. Categoría</label>
@@ -1242,7 +1678,7 @@ export default function App() {
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">Descuentos Rápidos</label>
+                      <label className="form-label">Descuentos Rápidos (Unitario)</label>
                       <div className="preset-grid">
                         <button onClick={() => setActiveDiscount(0)} className={`preset-btn ${activeDiscount === 0 ? 'btn-primary' : ''}`} style={{ border: 'none' }}>0%</button>
                         <button onClick={() => setActiveDiscount(10)} className={`preset-btn ${activeDiscount === 10 ? 'btn-primary' : ''}`} style={{ border: 'none' }}>10%</button>
@@ -1253,7 +1689,7 @@ export default function App() {
                   </div>
 
                   <div className="form-group" style={{ marginTop: '0.5rem' }}>
-                    <label className="form-label">Modificar PVP Unitario (Base: {catalogCategories[selectedCategory]?.pvp}€)</label>
+                    <label className="form-label">Modificar PVP Unitario (Base: {catalogCategories[selectedCategory]?.pvp}{currencySymbol})</label>
                     <input 
                       type="number" 
                       placeholder="PVP alternativo" 
@@ -1293,7 +1729,7 @@ export default function App() {
                                 <strong>{sale.modelo}</strong>
                                 <div style={{ fontSize: '0.75rem', color: 'var(--tuna-600)' }}>{sale.producto} · {sale.talla} (x{sale.cantidad})</div>
                               </td>
-                              <td>{parseFloat(sale.total).toFixed(2)} €</td>
+                              <td>{parseFloat(sale.total || 0).toFixed(2)} {currencySymbol}</td>
                               <td>
                                 <span className={`badge ${sale.metodo_pago === 'CASH' ? 'badge-cash' : 'badge-card'}`}>
                                   {sale.metodo_pago}
@@ -1309,7 +1745,7 @@ export default function App() {
                           ))}
                         {ventas.filter(v => v.created_at.split('T')[0] === new Date().toISOString().split('T')[0]).length === 0 && (
                           <tr>
-                            <td colSpan="6" style={{ textAlignment: 'center', color: 'var(--tuna-600)', padding: '2rem 0' }}>No hay ventas registradas hoy.</td>
+                            <td colSpan="6" style={{ textAlign: 'center', color: 'var(--tuna-600)', padding: '2rem 0' }}>No hay ventas registradas hoy.</td>
                           </tr>
                         )}
                       </tbody>
@@ -1322,7 +1758,7 @@ export default function App() {
               <div className="pos-cart">
                 <div className="pos-cart-header">
                   <h3>Caja Activa (Ticket)</h3>
-                  <button onClick={() => setCart([])} className="btn btn-danger" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>Limpiar</button>
+                  <button onClick={() => { setCart([]); setCartDiscount(0); }} className="btn btn-danger" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>Limpiar</button>
                 </div>
 
                 <div className="pos-cart-items">
@@ -1331,11 +1767,11 @@ export default function App() {
                       <div>
                         <strong>{item.model}</strong>
                         <div style={{ fontSize: '0.8rem', color: 'var(--tuna-600)' }}>
-                          Talla {item.size} | {item.price.toFixed(2)}€ x {item.qty}
+                          Talla {item.size} | {item.price.toFixed(2)}{currencySymbol} x {item.qty}
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                        <span style={{ fontWeight: '700' }}>{item.total.toFixed(2)} €</span>
+                        <span style={{ fontWeight: '700' }}>{item.total.toFixed(2)} {currencySymbol}</span>
                         <button onClick={() => handleRemoveFromCart(item.id)} style={{ color: 'var(--coral-accent)', cursor: 'pointer', background: 'none', border: 'none' }}>
                           <X size={18} />
                         </button>
@@ -1350,11 +1786,42 @@ export default function App() {
                   )}
                 </div>
 
+                {/* Discounts Section */}
+                <div className="pos-cart-discounts" style={{ padding: '1rem', borderTop: '1px solid var(--sand-200)', backgroundColor: 'var(--sand-100)' }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.5rem' }}>Descuentos de Ticket</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button 
+                      onClick={() => setCartDiscount(cartDiscount === 10 ? 0 : 10)} 
+                      className={`btn ${cartDiscount === 10 ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{ fontSize: '0.75rem', padding: '0.4rem', flex: 1 }}
+                    >
+                      Promo 2ª Ud (-10€)
+                    </button>
+                    <button 
+                      onClick={() => setCartDiscount(0)} 
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.75rem', padding: '0.4rem', flex: 0.5 }}
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                </div>
+
                 <div className="pos-cart-summary">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--tuna-600)' }}>Subtotal:</span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{cart.reduce((sum, item) => sum + item.total, 0).toFixed(2)} {currencySymbol}</span>
+                  </div>
+                  {cartDiscount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', color: 'var(--coral-accent)', fontSize: '0.85rem' }}>
+                      <span>Descuento Aplicado:</span>
+                      <strong>-{cartDiscount.toFixed(2)} {currencySymbol}</strong>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.25rem', borderTop: '1px solid var(--sand-200)', paddingTop: '0.5rem' }}>
                     <span>TOTAL COMPRA:</span>
                     <strong style={{ fontSize: '1.75rem', color: 'var(--tuna-primary)' }}>
-                      {cart.reduce((sum, item) => sum + item.total, 0).toFixed(2)} €
+                      {Math.max(0, cart.reduce((sum, item) => sum + item.total, 0) - cartDiscount).toFixed(2)} {currencySymbol}
                     </strong>
                   </div>
 
@@ -1371,7 +1838,7 @@ export default function App() {
                       className={`btn ${paymentMethod === 'CASH' ? 'btn-primary' : 'btn-secondary'}`} 
                       style={{ flex: 1 }}
                     >
-                      <DollarSign size={16} /> CASH (EFECTIVO)
+                      <DollarSign size={16} /> CASH
                     </button>
                   </div>
 
@@ -1391,13 +1858,24 @@ export default function App() {
           {/* TAB 3: INVENTARIO */}
           {activeTab === 'stock' && (
             <div className="fade-in card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <h3>Stock e Inventarios Activos</h3>
-                {!isAdmin && (
-                  <span style={{ fontSize: '0.8rem', color: 'var(--coral-accent)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Lock size={12} /> Se requieren permisos de Admin para ajustar stock manual
-                  </span>
-                )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>Stock e Inventario Activo</h3>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--tuna-600)' }}>Modifica las casillas numéricas directamente según lo que tengas en el stand.</span>
+                </div>
+                
+                {/* SEARCH BAR */}
+                <div style={{ position: 'relative', width: '300px' }}>
+                  <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--tuna-600)' }} />
+                  <input 
+                    type="text" 
+                    placeholder="Buscar producto, modelo o talla..." 
+                    value={inventorySearch} 
+                    onChange={(e) => setInventorySearch(e.target.value)} 
+                    className="form-input" 
+                    style={{ paddingLeft: '2.25rem', margin: 0 }}
+                  />
+                </div>
               </div>
 
               <div className="table-container">
@@ -1408,12 +1886,12 @@ export default function App() {
                       <th>Modelo</th>
                       <th>Talla</th>
                       <th>Stock Inicial</th>
-                      <th>Stock Actual</th>
-                      <th>Ajustes de Caja</th>
+                      <th>Stock Actual (Editable)</th>
+                      <th>Ajustar</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {stock.map(item => {
+                    {filteredStock.map(item => {
                       const pct = (item.cantidad_actual / item.cantidad_inicial) * 100;
                       let cls = 'stock-high';
                       if (item.cantidad_actual === 0) cls = 'stock-zero';
@@ -1426,38 +1904,30 @@ export default function App() {
                           <td>{item.modelo}</td>
                           <td><span className="badge" style={{ backgroundColor: 'var(--sand-200)', color: 'var(--tuna-primary)' }}>{item.talla}</span></td>
                           <td style={{ color: 'var(--tuna-600)' }}>{item.cantidad_inicial}</td>
-                          <td className={cls}>{item.cantidad_actual}</td>
+                          <td className={cls} style={{ width: '130px' }}>
+                            <input 
+                              type="number" 
+                              value={item.cantidad_actual} 
+                              onChange={(e) => handleStockCellChange(item.id, e.target.value)}
+                              className="stock-edit-input"
+                              style={{ width: '65px', textAlign: 'center', border: '1px solid var(--sand-300)', borderRadius: '4px', padding: '2px' }}
+                            />
+                          </td>
                           <td>
                             <div style={{ display: 'flex', gap: '4px' }}>
-                              <button 
-                                onClick={() => handleStockAdjust(item.id, -1)} 
-                                className="btn btn-secondary" 
-                                style={{ padding: '2px 8px', fontSize: '0.75rem' }}
-                                disabled={!isAdmin}
-                              >
-                                -1
-                              </button>
-                              <button 
-                                onClick={() => handleStockAdjust(item.id, 1)} 
-                                className="btn btn-secondary" 
-                                style={{ padding: '2px 8px', fontSize: '0.75rem' }}
-                                disabled={!isAdmin}
-                              >
-                                +1
-                              </button>
-                              <button 
-                                onClick={() => handleStockAdjust(item.id, 10)} 
-                                className="btn btn-secondary" 
-                                style={{ padding: '2px 8px', fontSize: '0.75rem' }}
-                                disabled={!isAdmin}
-                              >
-                                +10
-                              </button>
+                              <button onClick={() => handleStockAdjust(item.id, -1)} className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>-1</button>
+                              <button onClick={() => handleStockAdjust(item.id, 1)} className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>+1</button>
+                              <button onClick={() => handleStockAdjust(item.id, 10)} className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>+10</button>
                             </div>
                           </td>
                         </tr>
                       );
                     })}
+                    {filteredStock.length === 0 && (
+                      <tr>
+                        <td colSpan="6" style={{ textAlign: 'center', color: 'var(--tuna-600)', padding: '2rem 0' }}>Ningún producto coincide con el filtro de búsqueda.</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1467,48 +1937,59 @@ export default function App() {
           {/* TAB 4: HISTORICO COMPARATIVAS */}
           {activeTab === 'analytics' && (
             <div className="fade-in">
+              {/* Year over Year Comparison cards */}
               <h3 style={{ marginBottom: '1.25rem' }}>Histórico General Comparativo Anual</h3>
               <div className="grid grid-cols-4" style={{ marginBottom: '2.5rem' }}>
-                <div className="card" style={{ borderLeft: '4px solid var(--sand-300)' }}>
-                  <span className="stat-label">Temporada 2023</span>
-                  <span className="stat-value" style={{ fontSize: '1.75rem' }}>{HISTORICAL_DATA.years[2023].total.toFixed(0)} €</span>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--tuna-600)', marginTop: '0.5rem' }}>
-                    <div>Dias: {HISTORICAL_DATA.years[2023].dias} | Uds: {HISTORICAL_DATA.years[2023].uds}</div>
-                    <div>Ticket Medio: {HISTORICAL_DATA.years[2023].ticketMedio}€</div>
+                {Object.keys(historicalYears).map(yr => (
+                  <div key={yr} className="card" style={{ borderLeft: '4px solid var(--sand-300)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="stat-label">Temporada {yr}</span>
+                      {isAdmin && (
+                        <button onClick={() => handleRemoveHistYear(yr)} style={{ color: 'var(--coral-accent)', border: 'none', background: 'none', cursor: 'pointer' }}>
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                    <span className="stat-value" style={{ fontSize: '1.75rem' }}>{(historicalYears[yr].total || 0).toFixed(0)} {currencySymbol}</span>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--tuna-600)', marginTop: '0.5rem' }}>
+                      <div>Dias: {historicalYears[yr].dias} | Uds: {historicalYears[yr].uds}</div>
+                      <div>Ticket Medio: {historicalYears[yr].ticketMedio}{currencySymbol}</div>
+                    </div>
                   </div>
-                </div>
-                <div className="card" style={{ borderLeft: '4px solid var(--sand-300)' }}>
-                  <span className="stat-label">Temporada 2024</span>
-                  <span className="stat-value" style={{ fontSize: '1.75rem' }}>{HISTORICAL_DATA.years[2024].total.toFixed(0)} €</span>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--tuna-600)', marginTop: '0.5rem' }}>
-                    <div>Dias: {HISTORICAL_DATA.years[2024].dias} | Uds: {HISTORICAL_DATA.years[2024].uds}</div>
-                    <div>Ticket Medio: {HISTORICAL_DATA.years[2024].ticketMedio}€</div>
-                  </div>
-                </div>
-                <div className="card" style={{ borderLeft: '4px solid var(--teal-accent)' }}>
-                  <span className="stat-label">Temporada 2025</span>
-                  <span className="stat-value" style={{ fontSize: '1.75rem' }}>{HISTORICAL_DATA.years[2025].total.toFixed(2)} €</span>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--tuna-600)', marginTop: '0.5rem' }}>
-                    <div>Dias: {HISTORICAL_DATA.years[2025].dias} | Uds: {HISTORICAL_DATA.years[2025].uds}</div>
-                    <div>Ticket Medio: {HISTORICAL_DATA.years[2025].ticketMedio}€</div>
-                  </div>
-                </div>
+                ))}
+                
+                {/* Current Year */}
                 <div className="card" style={{ borderLeft: '4px solid var(--tuna-primary)' }}>
                   <span className="stat-label">Temporada 2026 (Actual)</span>
-                  <span className="stat-value" style={{ fontSize: '1.75rem' }}>{stats.totalAcumulado.toFixed(2)} €</span>
+                  <span className="stat-value" style={{ fontSize: '1.75rem' }}>{stats.totalAcumulado.toFixed(2)} {currencySymbol}</span>
                   <div style={{ fontSize: '0.8rem', color: 'var(--tuna-600)', marginTop: '0.5rem' }}>
-                    <div>Dias: {eventConfig.diasTranscurridos} | Uds: {ventas.reduce((s, v) => s + parseInt(v.cantidad), 0)}</div>
-                    <div>Ticket Medio: {stats.ticketMedio.toFixed(1)}€</div>
+                    <div>Dias: {eventConfig.diasTranscurridos} | Uds: {ventas.reduce((s, v) => s + parseInt(v.cantidad || 0), 0)}</div>
+                    <div>Ticket Medio: {stats.ticketMedio.toFixed(1)}{currencySymbol}</div>
                   </div>
                 </div>
               </div>
 
               {/* Interactive YOY trajectory SVG graph */}
               <div className="card">
-                <h3>Trayectoria de Ventas Acumuladas: 2026 vs 2025</h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--tuna-600)', marginBottom: '1.5rem' }}>
-                  Compara el progreso del 2026 (línea verde-azul) día a día con el total del año pasado 2025 (línea dorada discontinua).
-                </p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                  <div>
+                    <h3 style={{ margin: 0 }}>Trayectoria de Ventas Acumuladas: 2026 vs Comparativa YOY</h3>
+                    <p style={{ fontSize: 0.85 + 'rem', color: 'var(--tuna-600)', margin: 0 }}>
+                      Compara el progreso diario del 2026 con el año histórico que elijas del desplegable.
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>Comparar con:</span>
+                    <select 
+                      value={chartCompareYear} 
+                      onChange={(e) => setChartCompareYear(e.target.value)} 
+                      className="form-input" 
+                      style={{ margin: 0, width: 'auto', padding: '0.25rem 1.75rem 0.25rem 0.5rem', fontSize: '0.8rem' }}
+                    >
+                      {Object.keys(historicalYears).map(yr => <option key={yr} value={yr}>{yr}</option>)}
+                    </select>
+                  </div>
+                </div>
                 
                 <div style={{ position: 'relative', width: '100%', height: '320px', backgroundColor: '#ffffff', border: '1px solid var(--sand-200)', borderRadius: 'var(--radius-lg)', padding: '1rem' }}>
                   <svg viewBox="0 0 600 240" style={{ width: '100%', height: '100%' }}>
@@ -1521,13 +2002,13 @@ export default function App() {
                     <text x="10" y="124" fill="var(--tuna-700)" fontSize="8">15k€</text>
                     <text x="10" y="214" fill="var(--tuna-700)" fontSize="8">0€</text>
 
-                    {/* 2025 Trajectory */}
+                    {/* Historical trajectory line (Dynamically scaled to selected comparison year) */}
                     {(() => {
                       const pts = salesChartData
-                        .filter(d => d.historical2025 !== null)
+                        .filter(d => d.historicalCompare !== null)
                         .map(d => {
-                          const x = 40 + (d.dayIndex / eventConfig.diasTotales) * 540;
-                          const y = 210 - (d.historical2025 / 31063.2) * 190;
+                          const x = 40 + (d.dayIndex / (eventConfig.diasTotales || 1)) * 540;
+                          const y = 210 - (d.historicalCompare / 31063.2) * 190;
                           return `${x},${y}`;
                         })
                         .join(' ');
@@ -1539,7 +2020,7 @@ export default function App() {
                       const pts = salesChartData
                         .filter(d => d.cumulative !== null)
                         .map(d => {
-                          const x = 40 + (d.dayIndex / eventConfig.diasTotales) * 540;
+                          const x = 40 + (d.dayIndex / (eventConfig.diasTotales || 1)) * 540;
                           const y = 210 - (d.cumulative / 31063.2) * 190;
                           return `${x},${y}`;
                         })
@@ -1551,7 +2032,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Product margins & performance */}
+              {/* Product performance */}
               <div className="card">
                 <h3>Rentabilidades por Producto 2026</h3>
                 <div className="table-container" style={{ marginTop: '1rem' }}>
@@ -1572,18 +2053,18 @@ export default function App() {
                     </thead>
                     <tbody>
                       {productPerformance.map(item => {
-                        const d = parseFloat(item.differenceRentability);
+                        const d = parseFloat(item.differenceRentability || 0);
                         const cls = d > 0 ? 'var(--teal-dark)' : d < 0 ? 'var(--coral-accent)' : 'var(--tuna-700)';
 
                         return (
                           <tr key={item.name}>
                             <td><strong>{item.name}</strong></td>
                             <td><span className="badge" style={{ backgroundColor: 'var(--sand-200)', color: 'var(--tuna-primary)' }}>x{item.multiplier}</span></td>
-                            <td>{item.costUnit.toFixed(2)} €</td>
-                            <td>{item.pvpUnit.toFixed(2)} €</td>
+                            <td>{(item.costUnit || 0).toFixed(2)} {currencySymbol}</td>
+                            <td>{(item.pvpUnit || 0).toFixed(2)} {currencySymbol}</td>
                             <td>{item.unitsSold} uds</td>
-                            <td>{item.revenue.toFixed(2)} €</td>
-                            <td style={{ color: 'var(--teal-dark)' }}>{item.profit.toFixed(2)} €</td>
+                            <td>{(item.revenue || 0).toFixed(2)} {currencySymbol}</td>
+                            <td style={{ color: 'var(--teal-dark)' }}>{(item.profit || 0).toFixed(2)} {currencySymbol}</td>
                             <td>{item.pctUnits}%</td>
                             <td>{item.pctProfit}%</td>
                             <td style={{ color: cls, fontWeight: 'bold' }}>
@@ -1602,6 +2083,7 @@ export default function App() {
           {/* TAB 5: GASTOS & P&L */}
           {activeTab === 'expenses' && (
             <div className="fade-in">
+              {/* Dynamic P&L Account */}
               <div className="card" style={{ background: 'linear-gradient(135deg, var(--tuna-primary), var(--tuna-900))', color: '#ffffff' }}>
                 <h3 style={{ marginBottom: '1.5rem', color: '#ffffff' }}>Cuenta de Resultados P&L 2026</h3>
                 
@@ -1611,15 +2093,15 @@ export default function App() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span>Ventas Totales</span>
-                        <strong>{pnlReport.totalIncomes.toFixed(2)} €</strong>
+                        <strong>{(pnlReport.totalIncomes || 0).toFixed(2)} {currencySymbol}</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--sand-300)' }}>
                         <span>Efectivo (Cash)</span>
-                        <span>{stats.totalCash.toFixed(2)} €</span>
+                        <span>{stats.totalCash.toFixed(2)} {currencySymbol}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--sand-300)' }}>
                         <span>Tarjeta (Datafono)</span>
-                        <span>{stats.totalCard.toFixed(2)} €</span>
+                        <span>{stats.totalCard.toFixed(2)} {currencySymbol}</span>
                       </div>
                     </div>
                   </div>
@@ -1629,30 +2111,30 @@ export default function App() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.85rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span>Stand (Alquiler)</span>
-                        <span>{pnlReport.standCost.toFixed(2)} €</span>
+                        <span>{(pnlReport.standCost || 0).toFixed(2)} {currencySymbol}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span>Nóminas Personal</span>
-                        <span>{pnlReport.payrollCosts.toFixed(2)} €</span>
+                        <span>{(pnlReport.payrollCosts || 0).toFixed(2)} {currencySymbol}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span>Coste Producto (COGS)</span>
-                        <span>{pnlReport.productCost.toFixed(2)} €</span>
+                        <span>{(pnlReport.productCost || 0).toFixed(2)} {currencySymbol}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span>Costes Logística</span>
-                        <span>{pnlReport.otherCosts.toFixed(2)} €</span>
+                        <span>{(pnlReport.otherCosts || 0).toFixed(2)} {currencySymbol}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span>IVA Tarjeta (21%)</span>
-                        <span>{pnlReport.vatCard.toFixed(2)} €</span>
+                        <span>{(pnlReport.vatCard || 0).toFixed(2)} {currencySymbol}</span>
                       </div>
                     </div>
                   </div>
 
                   <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', padding: '1.5rem', borderRadius: 'var(--radius-lg)' }}>
                     <span style={{ fontSize: '0.75rem', color: 'var(--teal-accent)' }}>BENEFICIO NETO TOTAL 2026</span>
-                    <h2 style={{ fontSize: '2.25rem', color: '#ffffff', margin: '0.25rem 0' }}>{pnlReport.netProfit.toFixed(2)} €</h2>
+                    <h2 style={{ fontSize: '2.25rem', color: '#ffffff', margin: '0.25rem 0' }}>{(pnlReport.netProfit || 0).toFixed(2)} {currencySymbol}</h2>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginTop: '0.75rem' }}>
                       <span>Margen: <strong>{pnlReport.margin}%</strong></span>
                       <span>ROI: <strong>{pnlReport.roi}%</strong></span>
@@ -1672,7 +2154,7 @@ export default function App() {
                     </div>
                     <div className="grid grid-cols-2">
                       <div className="form-group">
-                        <label className="form-label">Importe (€)</label>
+                        <label className="form-label">Importe ({currencySymbol})</label>
                         <input type="number" step="0.01" value={gastoImporte} onChange={(e) => setGastoImporte(e.target.value)} className="form-input" required />
                       </div>
                       <div className="form-group">
@@ -1704,11 +2186,11 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody>
-                        {gastos.map(g => (
+                        {(gastos || []).map(g => (
                           <tr key={g.id}>
                             <td>{g.concepto}</td>
                             <td>{g.mes}</td>
-                            <td>{parseFloat(g.importe).toFixed(2)} €</td>
+                            <td>{parseFloat(g.importe || 0).toFixed(2)} {currencySymbol}</td>
                             <td>
                               <button onClick={() => handleRemoveExpense(g.id)} style={{ color: 'var(--coral-accent)', cursor: 'pointer', border: 'none', background: 'none' }}>
                                 <Trash2 size={14} />
@@ -1727,26 +2209,26 @@ export default function App() {
                     <div className="form-group">
                       <label className="form-label">Vendedor / Empleado</label>
                       <select value={payrollWorker} onChange={(e) => setPayrollWorker(e.target.value)} className="form-input">
-                        {DEFAULT_WORKERS.map(w => <option key={w} value={w}>{w}</option>)}
+                        {workers.map(w => <option key={w} value={w}>{w}</option>)}
                       </select>
                     </div>
                     <div className="grid grid-cols-2">
                       <div className="form-group">
-                        <label className="form-label">Base Julio (€)</label>
+                        <label className="form-label">Base Julio ({currencySymbol})</label>
                         <input type="number" value={payrollBaseJulio} onChange={(e) => setPayrollBaseJulio(e.target.value)} className="form-input" />
                       </div>
                       <div className="form-group">
-                        <label className="form-label">Base Agosto (€)</label>
+                        <label className="form-label">Base Agosto ({currencySymbol})</label>
                         <input type="number" value={payrollBaseAgosto} onChange={(e) => setPayrollBaseAgosto(e.target.value)} className="form-input" />
                       </div>
                     </div>
                     <div className="grid grid-cols-2">
                       <div className="form-group">
-                        <label className="form-label">Dietas a devolver (€)</label>
+                        <label className="form-label">Dietas a devolver ({currencySymbol})</label>
                         <input type="number" value={payrollGastos} onChange={(e) => setPayrollGastos(e.target.value)} className="form-input" />
                       </div>
                       <div className="form-group">
-                        <label className="form-label">Bonus acordado (€)</label>
+                        <label className="form-label">Bonus acordado ({currencySymbol})</label>
                         <input type="number" value={payrollBonus} onChange={(e) => setPayrollBonus(e.target.value)} className="form-input" />
                       </div>
                     </div>
@@ -1760,156 +2242,421 @@ export default function App() {
           {/* TAB 6: SETTINGS */}
           {activeTab === 'settings' && (
             <div className="fade-in">
-              {isAdmin ? (
-                <>
-                  {/* Dynamic Catalog CRUD Management */}
-                  <div className="card">
-                    <h3>Gestión del Catálogo de Productos (CRUD)</h3>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--tuna-600)', marginBottom: '1.5rem' }}>
-                      Añade o quita categorías y modelos del catálogo. Los cambios se actualizarán al instante en la pantalla de la caja registradora.
-                    </p>
+              
+              {/* Dynamic Workers & Telegram Setup cards */}
+              <div className="grid grid-cols-2">
+                
+                {/* Workers Card */}
+                <div className="card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem' }}>
+                    <UserPlus size={20} color="var(--tuna-primary)" />
+                    <h3>Gestión de Trabajadores del Turno</h3>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--tuna-600)', marginBottom: '1.25rem' }}>
+                    Añade o elimina los nombres del personal de ventas que este verano operarán en el market.
+                  </p>
+                  
+                  {isAdmin ? (
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem' }}>
+                      <input 
+                        type="text" 
+                        placeholder="Ej. Sofia, Lucas" 
+                        value={newWorkerName} 
+                        onChange={(e) => setNewWorkerName(e.target.value)} 
+                        className="form-input" 
+                        style={{ margin: 0 }}
+                      />
+                      <button onClick={handleAddWorker} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Plus size={16} /> Añadir
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="badge badge-card" style={{ marginBottom: '1rem', display: 'block', padding: '0.75rem' }}>
+                      🔒 Requiere cuenta Administrador (Aitor) para añadir trabajadores.
+                    </div>
+                  )}
 
-                    <div className="grid grid-cols-2">
-                      {/* Category CRUD */}
-                      <div style={{ borderRight: '1px solid var(--sand-200)', paddingRight: '2rem' }}>
-                        <h4 style={{ marginBottom: '1rem' }}>Añadir Categoría de Producto</h4>
-                        <div className="form-group">
-                          <label className="form-label">Nombre de Categoría</label>
-                          <input type="text" placeholder="Ej. Gorras, Sudaderas" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} className="form-input" />
-                        </div>
-
-                        <div className="grid grid-cols-2">
-                          <div className="form-group">
-                            <label className="form-label">Coste Unitario (€)</label>
-                            <input type="number" placeholder="6.50" value={newCatCoste} onChange={(e) => setNewCatCoste(e.target.value)} className="form-input" />
-                          </div>
-                          <div className="form-group">
-                            <label className="form-label">PVP Base (€)</label>
-                            <input type="number" placeholder="25.00" value={newCatPvp} onChange={(e) => setNewCatPvp(e.target.value)} className="form-input" />
-                          </div>
-                        </div>
-
-                        <div className="form-group">
-                          <label className="form-label">Tallas disponibles (Separadas por comas)</label>
-                          <input type="text" placeholder="S, M, L, XL" value={newCatTallas} onChange={(e) => setNewCatTallas(e.target.value)} className="form-input" />
-                        </div>
-
-                        <button onClick={handleAddCategory} className="btn btn-primary" style={{ width: '100%' }}>Añadir Categoría</button>
-
-                        <div style={{ marginTop: '1.5rem' }}>
-                          <label className="form-label">Categorías Activas:</label>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-                            {Object.keys(catalogCategories).map(cat => (
-                              <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', backgroundColor: 'var(--sand-100)', borderRadius: 'var(--radius-sm)' }}>
-                                <span><strong>{cat}</strong> (Coste: {catalogCategories[cat].coste}€ | PVP: {catalogCategories[cat].pvp}€)</span>
-                                <button onClick={() => handleRemoveCategory(cat)} style={{ color: 'var(--coral-accent)', cursor: 'pointer', border: 'none', background: 'none' }}>Eliminar</button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {workers.map(w => (
+                      <div key={w} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 1rem', backgroundColor: 'var(--sand-100)', borderRadius: 'var(--radius-md)' }}>
+                        <span style={{ fontWeight: 600 }}>{w} {w === 'Aitor' && <span style={{ fontSize: '0.7rem', color: 'var(--teal-dark)' }}>(Admin)</span>}</span>
+                        {w !== 'Aitor' && isAdmin && (
+                          <button onClick={() => handleRemoveWorker(w)} style={{ color: 'var(--coral-accent)', border: 'none', background: 'none', cursor: 'pointer' }}>
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
+                    ))}
+                  </div>
+                </div>
 
-                      {/* Model CRUD */}
-                      <div style={{ paddingLeft: '1rem' }}>
-                        <h4 style={{ marginBottom: '1rem' }}>Añadir Modelo / Diseño</h4>
-                        <div className="form-group">
-                          <label className="form-label">Asociar a Categoría</label>
-                          <select value={newModCategory} onChange={(e) => setNewModCategory(e.target.value)} className="form-input">
-                            {Object.keys(catalogCategories).map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                          </select>
-                        </div>
+                {/* Telegram notifications config */}
+                <div className="card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem' }}>
+                    <Send size={20} color="var(--teal-accent)" />
+                    <h3>Notificaciones de Telegram</h3>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--tuna-600)', marginBottom: '1.25rem' }}>
+                    Recibe el cuadre de caja de cada día en el grupo de chat al instante y balances de previsión matutinos.
+                  </p>
 
-                        <div className="form-group">
-                          <label className="form-label">Nombre del Modelo</label>
-                          <input type="text" placeholder="Ej. Stripe Blue, Classic Pink" value={newModName} onChange={(e) => setNewModName(e.target.value)} className="form-input" />
-                        </div>
+                  <div className="form-group">
+                    <label className="form-label">Telegram Bot Token</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ej. 123456:ABC-DEF..." 
+                      value={telegramConfig.botToken} 
+                      onChange={(e) => setTelegramConfig({ ...telegramConfig, botToken: e.target.value })} 
+                      className="form-input" 
+                    />
+                  </div>
 
-                        <button onClick={handleAddModel} className="btn btn-primary" style={{ width: '100%' }}>Añadir Modelo</button>
+                  <div className="form-group">
+                    <label className="form-label">Chat ID de Grupo/Canal</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ej. -100123456789" 
+                      value={telegramConfig.chatId} 
+                      onChange={(e) => setTelegramConfig({ ...telegramConfig, chatId: e.target.value })} 
+                      className="form-input" 
+                    />
+                  </div>
 
-                        <div style={{ marginTop: '1.5rem', maxHeight: '220px', overflowY: 'auto' }}>
-                          <label className="form-label">Modelos Activos:</label>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-                            {Object.keys(catalogCategories).map(cat => (
-                              <div key={cat} style={{ marginBottom: '0.5rem' }}>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--tuna-700)' }}>{cat.toUpperCase()}:</span>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
-                                  {(catalogModels[cat] || []).map(mod => (
-                                    <span key={mod} className="badge" style={{ backgroundColor: 'var(--sand-200)', color: 'var(--tuna-primary)', fontSize: '0.7rem' }}>
-                                      {mod}
-                                      <button onClick={() => handleRemoveModel(cat, mod)} style={{ marginLeft: '6px', color: 'var(--coral-accent)', background: 'none', border: 'none', cursor: 'pointer' }}>x</button>
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
+                  <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px', margin: '0.5rem 0' }}>
+                    <input 
+                      type="checkbox" 
+                      id="tgClose" 
+                      checked={telegramConfig.enableOnClose} 
+                      onChange={(e) => setTelegramConfig({ ...telegramConfig, enableOnClose: e.target.checked })} 
+                    />
+                    <label htmlFor="tgClose" className="form-label" style={{ marginBottom: 0 }}>Enviar reporte al confirmar cuadre de caja</label>
+                  </div>
+
+                  <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px', margin: '0.5rem 0' }}>
+                    <input 
+                      type="checkbox" 
+                      id="tgMorning" 
+                      checked={telegramConfig.enableMorningPlan} 
+                      onChange={(e) => setTelegramConfig({ ...telegramConfig, enableMorningPlan: e.target.checked })} 
+                    />
+                    <label htmlFor="tgMorning" className="form-label" style={{ marginBottom: 0 }}>Enviar previsión matutina automáticamente</label>
+                  </div>
+                </div>
+              </div>
+
+              {/* General Application Config Card (Currency & Backups) */}
+              <div className="card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1.25rem' }}>
+                  <Settings size={20} color="var(--tuna-primary)" />
+                  <h3>Preferencias y Copias de Seguridad</h3>
+                </div>
+                <div className="grid grid-cols-3" style={{ gap: '1.5rem' }}>
+                  
+                  {/* Currency settings */}
+                  <div>
+                    <label className="form-label">Símbolo de Moneda</label>
+                    <select 
+                      value={currencySymbol} 
+                      onChange={(e) => { setCurrencySymbol(e.target.value); localStorage.setItem('sm_currency', e.target.value); }} 
+                      className="form-input"
+                    >
+                      <option value="€">Euro (€)</option>
+                      <option value="$">Dólar ($)</option>
+                      <option value="£">Libra (£)</option>
+                    </select>
+                  </div>
+
+                  {/* Backup export/import */}
+                  <div>
+                    <label className="form-label">Copias de Seguridad (Local)</label>
+                    <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
+                      <button onClick={handleExportBackup} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                        <Download size={15} /> Exportar JSON
+                      </button>
+                      <label className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', cursor: 'pointer', margin: 0 }}>
+                        <Upload size={15} /> Importar Copia
+                        <input type="file" accept=".json" onChange={handleImportBackup} style={{ display: 'none' }} />
+                      </label>
                     </div>
                   </div>
 
-                  {/* Supabase settings */}
-                  <div className="card">
-                    <h3>Ajustes Generales e Integraciones</h3>
-                    
-                    <div className="grid grid-cols-2" style={{ marginTop: '1.25rem' }}>
-                      <div>
-                        <h4 style={{ marginBottom: '1rem' }}>Conexión Supabase Cloud</h4>
-                        <div className="form-group">
-                          <label className="form-label">Supabase URL</label>
-                          <input type="text" value={supabaseUrl} onChange={(e) => setSupabaseUrl(e.target.value)} className="form-input" />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">Anon Public Key</label>
-                          <input type="password" value={supabaseKey} onChange={(e) => setSupabaseKey(e.target.value)} className="form-input" />
-                        </div>
+                  {/* Seed Restore */}
+                  <div>
+                    <label className="form-label">Restablecer Aplicación</label>
+                    <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
+                      <button onClick={handleRestoreDefaultCatalog} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', color: 'var(--coral-accent)' }}>
+                        <RefreshCw size={15} /> Restaurar Catálogo Semilla
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Historical Years CRUD (Admin) */}
+              <div className="card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem' }}>
+                  <Calendar size={20} color="var(--tuna-primary)" />
+                  <h3>Ajuste de Años Históricos YOY</h3>
+                </div>
+                <p style={{ fontSize: '0.85rem', color: 'var(--tuna-600)', marginBottom: '1.25rem' }}>
+                  Configura los balances históricos de otras campañas para realizar la comparación de trayectoria.
+                </p>
+
+                {isAdmin ? (
+                  <div className="grid grid-cols-5" style={{ gap: '8px', marginBottom: '1.5rem' }}>
+                    <input type="number" placeholder="Año" value={newHistYear} onChange={(e) => setNewHistYear(e.target.value)} className="form-input" style={{ margin: 0 }} />
+                    <input type="number" placeholder="Total Facturado" value={newHistTotal} onChange={(e) => setNewHistTotal(e.target.value)} className="form-input" style={{ margin: 0 }} />
+                    <input type="number" placeholder="Días Abiertos" value={newHistDias} onChange={(e) => setNewHistDias(e.target.value)} className="form-input" style={{ margin: 0 }} />
+                    <input type="number" placeholder="Uds Vendidas" value={newHistUds} onChange={(e) => setNewHistUds(e.target.value)} className="form-input" style={{ margin: 0 }} />
+                    <button onClick={handleAddHistYear} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+                      <Plus size={16} /> Añadir
+                    </button>
+                  </div>
+                ) : (
+                  <div className="badge badge-card" style={{ marginBottom: '1rem', display: 'block', padding: '0.75rem' }}>
+                    🔒 Requiere cuenta Administrador (Aitor) para gestionar datos históricos.
+                  </div>
+                )}
+              </div>
+
+              {/* Database integrations */}
+              <div className="card">
+                <h3>Ajustes Generales e Integraciones</h3>
+                
+                <div className="grid grid-cols-2" style={{ marginTop: '1.25rem' }}>
+                  <div>
+                    <h4 style={{ marginBottom: '1rem' }}>Conexión Supabase Cloud</h4>
+                    <div className="form-group">
+                      <label className="form-label">Supabase URL</label>
+                      <input type="text" value={supabaseUrl} onChange={(e) => setSupabaseUrl(e.target.value)} className="form-input" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Anon Public Key</label>
+                      <input type="password" value={supabaseKey} onChange={(e) => setSupabaseKey(e.target.value)} className="form-input" />
+                    </div>
+                    {isAdmin ? (
+                      <>
                         <button onClick={handleSaveConnection} className="btn btn-primary" style={{ width: '100%', marginBottom: '0.5rem' }}>Guardar y Conectar</button>
                         <button onClick={handleResetDatabase} className="btn btn-danger" style={{ width: '100%' }}>Reiniciar Datos Locales</button>
+                      </>
+                    ) : (
+                      <div className="badge badge-card" style={{ textAlign: 'center' }}>
+                        🔒 Se requiere cuenta de Admin para modificar Supabase.
                       </div>
+                    )}
+                  </div>
 
-                      <div>
-                        <h4 style={{ marginBottom: '1rem' }}>Configuración del Evento</h4>
-                        <div className="form-group">
-                          <label className="form-label">Nombre del Evento</label>
-                          <input type="text" value={eventConfig.nombre} onChange={(e) => setEventConfig({ ...eventConfig, nombre: e.target.value })} className="form-input" />
-                        </div>
-                        <div className="grid grid-cols-2">
-                          <div className="form-group">
-                            <label className="form-label">Objetivo Ventas (€)</label>
-                            <input type="number" value={eventConfig.objetivoVentas} onChange={(e) => setEventConfig({ ...eventConfig, objetivoVentas: parseInt(e.target.value) || 0 })} className="form-input" />
-                          </div>
-                          <div className="form-group">
-                            <label className="form-label">Días Totales</label>
-                            <input type="number" value={eventConfig.diasTotales} onChange={(e) => setEventConfig({ ...eventConfig, diasTotales: parseInt(e.target.value) || 0 })} className="form-input" />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2">
-                          <div className="form-group">
-                            <label className="form-label">Días Transcurridos</label>
-                            <input type="number" value={eventConfig.diasTranscurridos} onChange={(e) => setEventConfig({ ...eventConfig, diasTranscurridos: parseInt(e.target.value) || 0 })} className="form-input" />
-                          </div>
-                          <div className="form-group">
-                            <label className="form-label">Fecha Inicio</label>
-                            <input type="date" value={eventConfig.fechaInicio} onChange={(e) => setEventConfig({ ...eventConfig, fechaInicio: e.target.value })} className="form-input" />
-                          </div>
-                        </div>
+                  <div>
+                    <h4 style={{ marginBottom: '1rem' }}>Configuración del Evento</h4>
+                    <div className="form-group">
+                      <label className="form-label">Nombre del Evento</label>
+                      <input type="text" value={eventConfig.nombre} onChange={(e) => setEventConfig({ ...eventConfig, nombre: e.target.value })} className="form-input" />
+                    </div>
+                    <div className="grid grid-cols-2">
+                      <div className="form-group">
+                        <label className="form-label">Objetivo Ventas (€)</label>
+                        <input type="number" value={eventConfig.objetivoVentas} onChange={(e) => setEventConfig({ ...eventConfig, objetivoVentas: parseInt(e.target.value) || 0 })} className="form-input" />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Días Totales</label>
+                        <input type="number" value={eventConfig.diasTotales} onChange={(e) => setEventConfig({ ...eventConfig, diasTotales: parseInt(e.target.value) || 0 })} className="form-input" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2">
+                      <div className="form-group">
+                        <label className="form-label">Días Transcurridos</label>
+                        <input type="number" value={eventConfig.diasTranscurridos} onChange={(e) => setEventConfig({ ...eventConfig, diasTranscurridos: parseInt(e.target.value) || 0 })} className="form-input" />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Fecha Inicio</label>
+                        <input type="date" value={eventConfig.fechaInicio} onChange={(e) => setEventConfig({ ...eventConfig, fechaInicio: e.target.value })} className="form-input" />
                       </div>
                     </div>
                   </div>
-                </>
-              ) : (
-                <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-                  <Lock size={48} color="var(--coral-accent)" />
-                  <h3>Acceso Restringido</h3>
-                  <p style={{ color: 'var(--tuna-600)', maxWidth: '400px' }}>
-                    Se requieren privilegios de Administrador para modificar el catálogo de productos y conectar la base de datos de Supabase. Por favor, selecciona el cajero **Aitor** en la barra superior.
-                  </p>
                 </div>
-              )}
+              </div>
             </div>
           )}
         </section>
       </main>
+
+      {/* QUICK CATALOG CRUD DIALOG MODAL (ACCESIBLE DIRECTAMENTE DESDE TPV CAJA) */}
+      {showCatalogModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(10,23,33,0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 100,
+          padding: '1rem'
+        }}>
+          <div className="card fade-in" style={{ width: '100%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto', marginBottom: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '2px solid var(--sand-100)', paddingBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Edit3 size={20} color="var(--tuna-primary)" />
+                <h3 style={{ margin: 0 }}>Ajustar Catálogo de Productos</h3>
+              </div>
+              <button onClick={() => setShowCatalogModal(false)} style={{ color: 'var(--tuna-700)', cursor: 'pointer', border: 'none', background: 'none' }}>
+                <X size={22} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2" style={{ gap: '2rem' }}>
+              {/* Category CRUD */}
+              <div style={{ borderRight: '1px solid var(--sand-200)', paddingRight: '1.5rem' }}>
+                
+                {/* Form to add a new category */}
+                <h4 style={{ marginBottom: '1rem' }}>Añadir Categoría de Producto</h4>
+                {isAdmin ? (
+                  <>
+                    <div className="form-group">
+                      <label className="form-label">Nombre de Categoría</label>
+                      <input type="text" placeholder="Ej. Gorras, Sudaderas" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} className="form-input" />
+                    </div>
+
+                    <div className="grid grid-cols-2">
+                      <div className="form-group">
+                        <label className="form-label">Coste Unitario (€)</label>
+                        <input type="number" placeholder="6.50" value={newCatCoste} onChange={(e) => setNewCatCoste(e.target.value)} className="form-input" />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">PVP Base (€)</label>
+                        <input type="number" placeholder="25.00" value={newCatPvp} onChange={(e) => setNewCatPvp(e.target.value)} className="form-input" />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Tallas disponibles (Separadas por comas)</label>
+                      <input type="text" placeholder="S, M, L, XL" value={newCatTallas} onChange={(e) => setNewCatTallas(e.target.value)} className="form-input" />
+                    </div>
+
+                    <button onClick={handleAddCategory} className="btn btn-primary" style={{ width: '100%' }}>Añadir Categoría</button>
+                  </>
+                ) : (
+                  <div className="badge badge-card" style={{ marginBottom: '1rem' }}>
+                    🔒 Requiere cuenta Administrador (Aitor) para crear categorías.
+                  </div>
+                )}
+
+                {/* Listing Active Categories with Inline MODIFICATION */}
+                <div style={{ marginTop: '1.5rem' }}>
+                  <label className="form-label">Categorías y Precios Activos:</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', maxHeight: '250px', overflowY: 'auto' }}>
+                    {Object.keys(catalogCategories).map(cat => (
+                      <div key={cat} style={{ padding: '0.75rem', backgroundColor: 'var(--sand-100)', borderRadius: 'var(--radius-sm)', border: editingCategory === cat ? '1px solid var(--teal-accent)' : '1px solid var(--sand-200)' }}>
+                        {editingCategory === cat ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <strong>Editando {cat}</strong>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              <input type="number" placeholder="Coste" value={editCatCoste} onChange={(e) => setEditCatCoste(e.target.value)} className="form-input" style={{ margin: 0, fontSize: '0.75rem', padding: '0.25rem' }} />
+                              <input type="number" placeholder="PVP" value={editCatPvp} onChange={(e) => setEditCatPvp(e.target.value)} className="form-input" style={{ margin: 0, fontSize: '0.75rem', padding: '0.25rem' }} />
+                            </div>
+                            <input type="text" placeholder="Tallas" value={editCatTallas} onChange={(e) => setEditCatTallas(e.target.value)} className="form-input" style={{ margin: 0, fontSize: '0.75rem', padding: '0.25rem' }} />
+                            <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                              <button onClick={handleSaveCategoryEdits} className="btn btn-primary" style={{ flex: 1, fontSize: '0.7rem', padding: '0.25rem' }}>Guardar</button>
+                              <button onClick={() => setEditingCategory(null)} className="btn btn-secondary" style={{ flex: 0.5, fontSize: '0.7rem', padding: '0.25rem' }}>Cancelar</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                              <strong>{cat}</strong>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--tuna-600)' }}>
+                                Coste: {catalogCategories[cat].coste}€ | PVP: {catalogCategories[cat].pvp}€
+                              </div>
+                            </div>
+                            {isAdmin && (
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                <button onClick={() => handleStartEditingCategory(cat)} className="btn btn-secondary" style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}>Modificar</button>
+                                <button onClick={() => handleRemoveCategory(cat)} style={{ color: 'var(--coral-accent)', cursor: 'pointer', border: 'none', background: 'none', fontSize: '0.8rem' }}>Eliminar</button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Model CRUD */}
+              <div>
+                <h4 style={{ marginBottom: '1rem' }}>Añadir Modelo / Diseño</h4>
+                {isAdmin ? (
+                  <>
+                    <div className="form-group">
+                      <label className="form-label">Asociar a Categoría</label>
+                      <select value={newModCategory} onChange={(e) => setNewModCategory(e.target.value)} className="form-input">
+                        {Object.keys(catalogCategories).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Nombre del Modelo</label>
+                      <input type="text" placeholder="Ej. Stripe Blue, Classic Pink" value={newModName} onChange={(e) => setNewModName(e.target.value)} className="form-input" />
+                    </div>
+
+                    <button onClick={handleAddModel} className="btn btn-primary" style={{ width: '100%' }}>Añadir Modelo</button>
+                  </>
+                ) : (
+                  <div className="badge badge-card" style={{ marginBottom: '1rem' }}>
+                    🔒 Requiere cuenta Administrador (Aitor) para crear modelos.
+                  </div>
+                )}
+
+                {/* Model Listing with MODIFICATION support */}
+                <div style={{ marginTop: '1.5rem', maxHeight: '400px', overflowY: 'auto' }}>
+                  <label className="form-label">Modelos Activos por Categoría:</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
+                    {Object.keys(catalogCategories).map(cat => (
+                      <div key={cat} style={{ borderBottom: '1px solid var(--sand-200)', paddingBottom: '0.75rem' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--tuna-700)' }}>{cat.toUpperCase()}:</span>
+                        
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                          {(catalogModels[cat] || []).map(mod => (
+                            <span key={mod} className="badge" style={{ backgroundColor: 'var(--sand-200)', color: 'var(--tuna-primary)', fontSize: '0.75rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              
+                              {editingModel && editingModel.category === cat && editingModel.oldName === mod ? (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <input 
+                                    type="text" 
+                                    value={editingModel.newName} 
+                                    onChange={(e) => setEditingModel({ ...editingModel, newName: e.target.value })} 
+                                    style={{ fontSize: '0.7rem', padding: '1px 3px', border: '1px solid var(--teal-accent)', borderRadius: '2px', width: '80px' }}
+                                  />
+                                  <button onClick={handleSaveModelEdits} style={{ border: 'none', background: 'none', color: 'var(--teal-dark)', cursor: 'pointer', fontWeight: 'bold' }}>✓</button>
+                                  <button onClick={() => setEditingModel(null)} style={{ border: 'none', background: 'none', color: 'var(--coral-accent)', cursor: 'pointer' }}>×</button>
+                                </span>
+                              ) : (
+                                <>
+                                  {mod}
+                                  {isAdmin && (
+                                    <>
+                                      <button onClick={() => handleStartEditingModel(cat, mod)} style={{ color: 'var(--tuna-primary)', cursor: 'pointer', background: 'none', border: 'none', fontSize: '0.65rem' }} title="Modificar nombre">✎</button>
+                                      <button onClick={() => handleRemoveModel(cat, mod)} style={{ color: 'var(--coral-accent)', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+                                    </>
+                                  )}
+                                </>
+                              )}
+
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ARQUEO CAJA DIARIO REPORT MODAL */}
       {showClosureModal && (
@@ -1936,7 +2683,7 @@ export default function App() {
 
             <form onSubmit={handleDailyClosing}>
               <div className="form-group">
-                <label className="form-label">Efectivo Físico Contado en Cajón (€)</label>
+                <label className="form-label">Efectivo Físico Contado en Cajón ({currencySymbol})</label>
                 <input 
                   type="number" 
                   step="0.01" 
@@ -1948,7 +2695,7 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Tarjetas Totales Datáfono (€)</label>
+                <label className="form-label">Tarjetas Totales Datáfono ({currencySymbol})</label>
                 <input 
                   type="number" 
                   step="0.01" 
@@ -1972,12 +2719,12 @@ export default function App() {
               <div style={{ padding: '1rem', backgroundColor: 'var(--sand-100)', borderRadius: 'var(--radius-md)', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                   <span>Ventas Registradas Sistema hoy:</span>
-                  <strong>{stats.totalHoy.toFixed(2)} €</strong>
+                  <strong>{stats.totalHoy.toFixed(2)} {currencySymbol}</strong>
                 </div>
                 {efectivoContado && tarjetaDatafono && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: (parseFloat(efectivoContado) + parseFloat(tarjetaDatafono) - stats.totalHoy) >= 0 ? 'var(--teal-dark)' : 'var(--coral-accent)' }}>
                     <span>Desviación/Diferencia:</span>
-                    <strong>{(parseFloat(efectivoContado) + parseFloat(tarjetaDatafono) - stats.totalHoy).toFixed(2)} €</strong>
+                    <strong>{(parseFloat(efectivoContado) + parseFloat(tarjetaDatafono) - stats.totalHoy).toFixed(2)} {currencySymbol}</strong>
                   </div>
                 )}
               </div>
@@ -1991,6 +2738,68 @@ export default function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* DAILY MORNING BALANCE TARGET MODAL */}
+      {showMorningModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(10,23,33,0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 100,
+          padding: '1rem'
+        }}>
+          <div className="card fade-in" style={{ width: '100%', maxWidth: '520px', marginBottom: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '2px solid var(--sand-100)', paddingBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sparkles size={20} color="var(--teal-accent)" />
+                <h3>Previsión y Balance Diario</h3>
+              </div>
+              <button onClick={() => setShowMorningModal(false)} style={{ color: 'var(--tuna-700)', cursor: 'pointer', border: 'none', background: 'none' }}>
+                <X size={22} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div>
+                <span className="stat-label">Objetivo Diario Recomendado hoy:</span>
+                <div style={{ fontSize: '2rem', color: 'var(--teal-dark)', fontFamily: 'var(--font-brand)', margin: '0.25rem 0' }}>
+                  {morningBalance.recommendedTarget} {currencySymbol}
+                </div>
+                <span style={{ fontSize: '0.8rem', color: 'var(--tuna-600)' }}>
+                  Calculado aplicando un +15% de mejora sobre la media diaria de años anteriores ({morningBalance.histAvgDaily} {currencySymbol}/día).
+                </span>
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--sand-200)', paddingTop: '1rem' }}>
+                <span className="stat-label">Bañador sugerido a vender hoy (Push Product):</span>
+                <div style={{ fontSize: '1.2rem', color: 'var(--tuna-primary)', fontFamily: 'var(--font-brand)', margin: '0.25rem 0' }}>
+                  {morningBalance.topStockedSwimwearModel.split(' (')[0]}
+                </div>
+                <span style={{ fontSize: '0.8rem', color: 'var(--tuna-600)' }}>
+                  Sugerido automáticamente por ser el modelo de bañador con mayor unidades disponibles en el stock ({morningBalance.topStockedSwimwearModel.slice(morningBalance.topStockedSwimwearModel.indexOf('(') + 1, morningBalance.topStockedSwimwearModel.length - 1)}).
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '1rem' }}>
+                <button onClick={() => setShowMorningModal(false)} className="btn btn-secondary" style={{ flex: 1 }}>
+                  Cerrar
+                </button>
+                {telegramConfig.botToken && (
+                  <button onClick={handleSendMorningReport} className="btn btn-primary" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+                    <Send size={16} /> Enviar a Telegram
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
