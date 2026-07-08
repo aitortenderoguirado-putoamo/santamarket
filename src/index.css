@@ -640,3 +640,106 @@ h1, h2, h3, h4, h5, h6 {
 .fade-in {
   animation: fadeIn 0.25s ease forwards;
 }
+
+/* --- DARK MODE THEME OVERRIDES --- */
+body.dark-theme {
+  background-color: #081217 !important;
+  color: #f1f5f9 !important;
+  --sand-50: #0f1c24;
+  --sand-100: #081217;
+  --sand-200: #1a2d3a;
+  --sand-300: #334e60;
+  
+  --tuna-950: #f1f5f9;
+  --tuna-900: #cbd5e1;
+  --tuna-primary: #21c4a1; /* Brand Teal replaces Ocean Blue in Dark mode */
+  --tuna-700: #94a3b8;
+  --tuna-600: #64748b;
+  
+  --border-color: rgba(33, 196, 161, 0.15);
+}
+
+body.dark-theme .sidebar,
+body.dark-theme .top-bar,
+body.dark-theme .card,
+body.dark-theme .pos-cart,
+body.dark-theme .table-container,
+body.dark-theme .mobile-nav {
+  background-color: #0f1c24 !important;
+  color: #f1f5f9 !important;
+  border-color: #1a2d3a !important;
+}
+
+body.dark-theme .table tbody tr:hover {
+  background-color: #142530 !important;
+}
+
+body.dark-theme .table th {
+  background-color: #142530 !important;
+  color: #21c4a1 !important;
+  border-bottom-color: #1a2d3a !important;
+}
+
+body.dark-theme .table td {
+  border-bottom-color: #1a2d3a !important;
+  color: #e2e8f0 !important;
+}
+
+body.dark-theme .form-input,
+body.dark-theme .selector-chip {
+  background-color: #142530 !important;
+  border-color: #1a2d3a !important;
+  color: #f1f5f9 !important;
+}
+
+body.dark-theme .selector-chip.active {
+  background-color: #21c4a1 !important;
+  color: #081217 !important;
+  border-color: #21c4a1 !important;
+}
+
+body.dark-theme .preset-btn {
+  background-color: #1a2d3a !important;
+  color: #f1f5f9 !important;
+}
+
+body.dark-theme .preset-btn:hover {
+  background-color: #21c4a1 !important;
+  color: #081217 !important;
+}
+
+body.dark-theme .nav-item {
+  color: #94a3b8 !important;
+}
+
+body.dark-theme .nav-item.active {
+  background-color: rgba(33, 196, 161, 0.15) !important;
+  color: #21c4a1 !important;
+}
+
+body.dark-theme .nav-item:hover:not(.active) {
+  background-color: #142530 !important;
+  color: #21c4a1 !important;
+}
+
+body.dark-theme .pos-cart-summary {
+  background-color: #142530 !important;
+  border-top-color: #1a2d3a !important;
+}
+
+body.dark-theme .pos-cart-discounts {
+  background-color: #142530 !important;
+  border-top-color: #1a2d3a !important;
+}
+
+body.dark-theme .pos-cart-item {
+  border-bottom-color: #1a2d3a !important;
+}
+
+body.dark-theme h1,
+body.dark-theme h2,
+body.dark-theme h3,
+body.dark-theme h4 {
+  color: #21c4a1 !important;
+}
+
