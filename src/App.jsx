@@ -1734,10 +1734,123 @@ export default function App() {
         profit,
         pctUnits: pctUnits.toFixed(1),
         pctProfit: pctProfit.toFixed(1),
-        differenceRentability: differenceRentability.toFixed(1)
+differenceRentability: differenceRentability.toFixed(1)
       };
     });
   }, [ventas, catalogCategories]);
+
+  // Ranking of most sold items of all time (2023 + 2024 + 2025 + 2026)
+  const allTimeModelRanking = useMemo(() => {
+    const ranking = {};
+
+    // 1. Initialize with all known models in catalog to ensure consistency
+    Object.keys(catalogModels).forEach(cat => {
+      catalogModels[cat].forEach(mod => {
+        ranking[mod] = {
+          name: mod,
+          category: cat,
+          total: 0,
+          breakdown: { 2023: 0, 2024: 0, 2025: 0, 2026: 0 }
+        };
+      });
+    });
+
+    // 2. Historical sales from PDF documents
+    const historicalSeeds = {
+      2023: {
+        'Sea Lion': 6,
+        'Turtles': 10,
+        'Tunas': 23,
+        'coral rojo': 31,
+        'Stars': 6,
+        'Coral azul': 17,
+        'Hammer': 32,
+        'azul': 12,
+        'Wraps': 15,
+        'Microplastics': 7,
+        'Amarillo': 24,
+        'Straws': 1,
+        'Goodvibes': 7,
+        'Surfers': 3,
+        'Sixpack': 2,
+        'Feel': 13,
+        'Power': 4
+      },
+      2024: {
+        'Sea Lion': 26,
+        'Turtles': 21,
+        'Tunas': 13,
+        'coral rojo': 39,
+        'Stars': 7,
+        'Coral azul': 39,
+        'Hammer': 52,
+        'Wraps': 12,
+        'Microplastics': 13,
+        'Amarillo': 29,
+        'Straws': 6,
+        'Goodvibes': 20,
+        'Surfers': 17,
+        'Sixpack': 18
+      },
+      2025: {
+        'Sea Lion': 53,
+        'Turtles': 43,
+        'Tunas': 27,
+        'coral rojo': 80,
+        'Stars': 14,
+        'Coral azul': 80,
+        'Hammer': 106,
+        'Wraps': 25,
+        'Microplastics': 27,
+        'Amarillo': 59,
+        'Straws': 12,
+        'Goodvibes': 41,
+        'Surfers': 35,
+        'Sixpack': 37
+      }
+    };
+
+    [2023, 2024, 2025].forEach(yr => {
+      const yearSales = historicalSeeds[yr] || {};
+      Object.entries(yearSales).forEach(([modName, qty]) => {
+        if (ranking[modName]) {
+          ranking[modName].total += qty;
+          ranking[modName].breakdown[yr] += qty;
+        } else {
+          ranking[modName] = {
+            name: modName,
+            category: 'Histórico',
+            total: qty,
+            breakdown: { 2023: 0, 2024: 0, 2025: 0, 2026: 0 }
+          };
+          ranking[modName].breakdown[yr] = qty;
+        }
+      });
+    });
+
+    // 3. Add current year sales (2026)
+    ventas.forEach(v => {
+      const modName = v.modelo;
+      const qty = parseInt(v.cantidad || 0);
+      if (ranking[modName]) {
+        ranking[modName].total += qty;
+        ranking[modName].breakdown[2026] += qty;
+      } else {
+        ranking[modName] = {
+          name: modName,
+          category: v.producto,
+          total: qty,
+          breakdown: { 2023: 0, 2024: 0, 2025: 0, 2026: 0 }
+        };
+        ranking[modName].breakdown[2026] = qty;
+      }
+    });
+
+    // 4. Sort and filter
+    return Object.values(ranking)
+      .filter(item => item.total > 0)
+      .sort((a, b) => b.total - a.total);
+  }, [ventas, catalogModels]);
 
   // Pre-aggregate cumulative sales data for interactive SVG chart
   // Pre-aggregate cumulative sales data for interactive SVG chart
@@ -2829,6 +2942,46 @@ export default function App() {
                       })}
                     </tbody>
                   </table>
+                </div>
+              </div>
+
+              {/* All-Time Best Sellers Ranking */}
+              <div className="card" style={{ marginTop: '2rem' }}>
+                <h3>🏆 Ránking de Modelos Más Vendidos de Todos los Tiempos</h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--tuna-600)', marginBottom: '1.5rem' }}>
+                  Acumulado histórico total (2023 + 2024 + 2025 + 2026) por diseño/modelo de Sloppy Tunas.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {allTimeModelRanking.slice(0, 12).map((item, idx) => {
+                    const topQty = allTimeModelRanking[0]?.total || 1;
+                    const pct = (item.total / topQty) * 100;
+
+                    return (
+                      <div key={item.name} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                          <span>
+                            <strong style={{ color: 'var(--tuna-primary)' }}>#{idx + 1} {item.name}</strong> 
+                            <span style={{ fontSize: '0.75rem', color: 'var(--tuna-600)', marginLeft: '8px' }}>({item.category})</span>
+                          </span>
+                          <strong style={{ color: 'var(--teal-dark)' }}>{item.total} uds</strong>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                          <div style={{ flex: 1, height: '8px', backgroundColor: 'var(--sand-200)', borderRadius: '999px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${pct}%`, backgroundColor: 'var(--tuna-primary)' }}></div>
+                          </div>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--tuna-600)', minWidth: '220px', textAlign: 'right' }}>
+                            {item.breakdown[2023] > 0 && <span style={{ marginLeft: '6px' }}>'23: <strong>{item.breakdown[2023]}</strong></span>}
+                            {item.breakdown[2024] > 0 && <span style={{ marginLeft: '6px' }}>'24: <strong>{item.breakdown[2024]}</strong></span>}
+                            {item.breakdown[2025] > 0 && <span style={{ marginLeft: '6px' }}>'25: <strong>{item.breakdown[2025]}</strong></span>}
+                            {item.breakdown[2026] > 0 && <span style={{ marginLeft: '6px' }}>'26: <strong>{item.breakdown[2026]}</strong></span>}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {allTimeModelRanking.length === 0 && (
+                    <div style={{ textAlign: 'center', color: 'var(--tuna-600)', padding: '2rem 0' }}>Cargando ranking de modelos...</div>
+                  )}
                 </div>
               </div>
             </div>
